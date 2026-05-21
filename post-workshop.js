@@ -12,10 +12,13 @@ const postActivityMessage = document.getElementById("postActivityMessage");
 const postLeadTableSection = document.getElementById("postLeadTableSection");
 
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+const isAdmin = session?.role === "admin";
 
 const DEFAULT_FILTER = {
   search: "",
   workshop: "All",
+  counselor: "All",
+  activityStatus: "All",
   postDialed: "All",
   coursePitched: "All",
   admissionStatus: "All",
@@ -102,6 +105,21 @@ function getScopedLeads(allLeads) {
   return allLeads.filter(
     (lead) => String(lead.counselor || "").trim().toLowerCase() === counselorName
   );
+}
+
+function getLeadActivityUpdateCount(lead) {
+  const workshopUpdates = Array.isArray(lead?.workshopActivityHistory)
+    ? lead.workshopActivityHistory.length
+    : Number(lead?.preActivityUpdates) || 0;
+  const admissionUpdates = Array.isArray(lead?.admissionActivityHistory)
+    ? lead.admissionActivityHistory.length
+    : Number(lead?.postActivityUpdates) || 0;
+
+  return workshopUpdates + admissionUpdates;
+}
+
+function isUntouchedLead(lead) {
+  return getLeadActivityUpdateCount(lead) === 0;
 }
 
 function normalizeLeadFields(leads) {
@@ -191,6 +209,11 @@ function renderKpis(leads) {
 
 function renderFilters(leads) {
   const workshops = getUniqueValues(leads, "workshop");
+  const counselorOptions = [...new Set(
+    leads
+      .map((lead) => String(lead.counselor || "").trim())
+      .filter((name) => name && name.toLowerCase() !== "unassigned")
+  )];
   const workshopCallingDialedOptions = getUniqueValues(leads, "dialed");
   const workshopCallingCallStatusOptions = getUniqueValues(leads, "callStatus");
   const workshopCallingWsStatusOptions = getUniqueValues(leads, "wsStatus");
@@ -240,6 +263,21 @@ function renderFilters(leads) {
         <div class="filter-item">
           <label for="postSearchLeadInput">Search Lead</label>
           <input id="postSearchLeadInput" type="text" placeholder="Name, email, phone, workshop, counselor" />
+        </div>
+        <div class="filter-item${isAdmin ? "" : " hidden"}" data-admin-only="true">
+          <label for="postCounselorSelect">Counselor</label>
+          <select id="postCounselorSelect">
+            <option value="All">All</option>
+            ${counselorOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postActivityStatusSelect">Untouched Leads</label>
+          <select id="postActivityStatusSelect">
+            <option value="All">All</option>
+            <option value="Untouched">Untouched Only</option>
+            <option value="Updated">Updated Only</option>
+          </select>
         </div>
         <div class="filter-item">
           <label for="postWorkshopSelect">Workshop Name</label>
@@ -293,6 +331,8 @@ function renderFilters(leads) {
   document.getElementById("postWorkshopCallingWsStatusSelect").value = filter.workshopCallingWsStatus;
   document.getElementById("postWorkshopCallingWhatsappInviteSelect").value = filter.workshopCallingWhatsappInvite;
   document.getElementById("postSearchLeadInput").value = filter.search;
+  document.getElementById("postCounselorSelect").value = filter.counselor;
+  document.getElementById("postActivityStatusSelect").value = filter.activityStatus;
   document.getElementById("postWorkshopSelect").value = filter.workshop;
   document.getElementById("postDialedSelect").value = filter.postDialed;
   document.getElementById("postCoursePitchedSelect").value = filter.coursePitched;
@@ -321,6 +361,16 @@ function renderFilters(leads) {
 
   document.getElementById("postSearchLeadInput").oninput = (event) => {
     filter.search = event.target.value.trim();
+    persistFilterState();
+  };
+
+  document.getElementById("postCounselorSelect").onchange = (event) => {
+    filter.counselor = event.target.value;
+    persistFilterState();
+  };
+
+  document.getElementById("postActivityStatusSelect").onchange = (event) => {
+    filter.activityStatus = event.target.value;
     persistFilterState();
   };
 
@@ -382,6 +432,18 @@ function filterLeads(leads) {
 
   if (filter.workshop !== "All") {
     filtered = filtered.filter((lead) => lead.workshop === filter.workshop);
+  }
+
+  if (filter.counselor !== "All") {
+    filtered = filtered.filter((lead) => String(lead.counselor || "").trim() === filter.counselor);
+  }
+
+  if (filter.activityStatus === "Untouched") {
+    filtered = filtered.filter((lead) => isUntouchedLead(lead));
+  }
+
+  if (filter.activityStatus === "Updated") {
+    filtered = filtered.filter((lead) => !isUntouchedLead(lead));
   }
 
   if (filter.workshopCallingDialed !== "All") {

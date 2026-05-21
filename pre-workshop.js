@@ -100,11 +100,28 @@ function getScopedLeads(allLeads) {
   );
 }
 
+function getLeadActivityUpdateCount(lead) {
+  const workshopUpdates = Array.isArray(lead?.workshopActivityHistory)
+    ? lead.workshopActivityHistory.length
+    : Number(lead?.preActivityUpdates) || 0;
+  const admissionUpdates = Array.isArray(lead?.admissionActivityHistory)
+    ? lead.admissionActivityHistory.length
+    : Number(lead?.postActivityUpdates) || 0;
+
+  return workshopUpdates + admissionUpdates;
+}
+
+function isUntouchedLead(lead) {
+  return getLeadActivityUpdateCount(lead) === 0;
+}
+
 const DEFAULT_FILTER = {
   timeline: "week",
   startDate: "",
   endDate: "",
   search: "",
+  counselor: "All",
+  activityStatus: "All",
   workshop: "All",
   dialed: "All",
   callStatus: "All",
@@ -960,6 +977,18 @@ function filterLeads(leads) {
     });
   }
 
+  if (filter.counselor !== "All") {
+    filtered = filtered.filter((lead) => String(lead.counselor || "").trim() === filter.counselor);
+  }
+
+  if (filter.activityStatus === "Untouched") {
+    filtered = filtered.filter((lead) => isUntouchedLead(lead));
+  }
+
+  if (filter.activityStatus === "Updated") {
+    filtered = filtered.filter((lead) => !isUntouchedLead(lead));
+  }
+
   if (filter.workshop !== "All") {
     filtered = filtered.filter((lead) => lead.workshop === filter.workshop);
   }
@@ -1009,6 +1038,7 @@ function renderKpis(leads) {
 
 function renderFilters(leads) {
   const workshops = getUniqueWorkshops(leads);
+  const counselorOptions = getActiveCounselorNames();
   const dialedOptions = getUniqueValues(leads, "dialed");
   const callStatusOptions = getUniqueValues(leads, "callStatus");
   const wsStatusOptions = getUniqueValues(leads, "wsStatus");
@@ -1040,6 +1070,23 @@ function renderFilters(leads) {
       <div class="filter-item">
         <label for="searchLeadInput">Search Lead</label>
         <input id="searchLeadInput" type="text" placeholder="Name, email, phone, workshop, counselor" />
+      </div>
+
+      <div class="filter-item${isAdmin ? "" : " hidden"}" data-admin-only="true">
+        <label for="counselorSelect">Counselor</label>
+        <select id="counselorSelect">
+          <option value="All">All</option>
+          ${counselorOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="filter-item">
+        <label for="activityStatusSelect">Untouched Leads</label>
+        <select id="activityStatusSelect">
+          <option value="All">All</option>
+          <option value="Untouched">Untouched Only</option>
+          <option value="Updated">Updated Only</option>
+        </select>
       </div>
 
       <div class="filter-item">
@@ -1096,6 +1143,8 @@ function renderFilters(leads) {
   document.getElementById("startDateInput").value = filter.startDate;
   document.getElementById("endDateInput").value = filter.endDate;
   document.getElementById("searchLeadInput").value = filter.search;
+  document.getElementById("counselorSelect").value = filter.counselor;
+  document.getElementById("activityStatusSelect").value = filter.activityStatus;
   document.getElementById("workshopSelect").value = filter.workshop;
   document.getElementById("dialedSelect").value = filter.dialed;
   document.getElementById("callStatusSelect").value = filter.callStatus;
@@ -1124,6 +1173,16 @@ function renderFilters(leads) {
 
   document.getElementById("searchLeadInput").oninput = (event) => {
     filter.search = event.target.value.trim();
+    persistFilterState();
+  };
+
+  document.getElementById("counselorSelect").onchange = (event) => {
+    filter.counselor = event.target.value;
+    persistFilterState();
+  };
+
+  document.getElementById("activityStatusSelect").onchange = (event) => {
+    filter.activityStatus = event.target.value;
     persistFilterState();
   };
 
