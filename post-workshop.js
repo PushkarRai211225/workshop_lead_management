@@ -422,7 +422,7 @@ function closePostModal() {
   modalLeadId = null;
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+function initPostWorkshopPage() {
   const modal = document.getElementById("postActivityModal");
   if (!modal) {
     return;
@@ -446,7 +446,13 @@ window.addEventListener("DOMContentLoaded", () => {
     closePostModal();
     renderAll();
   };
-});
+}
+
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", initPostWorkshopPage);
+} else {
+  initPostWorkshopPage();
+}
 
 function renderAll() {
   const allLeads = getAllLeads();
