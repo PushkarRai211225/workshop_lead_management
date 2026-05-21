@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lost Leads Management</title>
+  <title>Task Tracker</title>
   <link rel="icon" type="image/png" href="Logos/DV-Logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,7 +20,7 @@
         <a href="dashboard.html" class="sidebar-link">Dashboard</a>
         <a href="pre-workshop.html" class="sidebar-link">Workshop Calling</a>
         <a href="post-workshop.html" class="sidebar-link">Admission Calling</a>
-        <a href="task-tracker.html" class="sidebar-link" data-counselor-only="true">Task Tracker</a>
+        <a href="task-tracker.html" class="sidebar-link">Task Tracker</a>
         <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
         <a href="monitoring.html" class="sidebar-link">Monitoring</a>
       </nav>
@@ -30,8 +30,8 @@
     <div class="main-content">
       <header class="topbar">
         <div class="topbar-title">
-          <h1>Lost Leads</h1>
-          <p>Track leads marked as not interested across workshop and admission calling stages.</p>
+          <h1>Task Tracker</h1>
+          <p>Track open tasks created from Workshop and Admission calling.</p>
         </div>
         <div class="topbar-profile">
           <span class="role-tag" data-role-tag></span>
@@ -39,27 +39,25 @@
         </div>
       </header>
 
-      <section class="kpi-grid" id="lostKpiSection"></section>
-      <section class="card filter-bar">
-        <div class="filter-row">
-          <div class="filter-item">
-            <label for="lostSearchInput">Search Lead</label>
-            <input id="lostSearchInput" type="text" placeholder="Name, email, phone, workshop, counselor" />
-          </div>
-          <div class="filter-item filter-item-cta">
-            <label>&nbsp;</label>
-            <div class="filter-actions">
-              <button id="applyLostSearch" class="btn-ghost" type="button">Apply</button>
-              <button id="resetLostSearch" class="btn-ghost" type="button">Reset</button>
-            </div>
-          </div>
+      <section class="card table-card monitoring-panel">
+        <div class="card-head">
+          <h3>Workshop Calling Tasks</h3>
+          <p>Tasks created from workshop-stage leads.</p>
         </div>
+        <div id="workshopTaskSection"></div>
       </section>
-      <section class="card table-card" id="lostLeadTableSection"></section>
+
+      <section class="card table-card monitoring-panel">
+        <div class="card-head">
+          <h3>Admission Calling Tasks</h3>
+          <p>Tasks created from admission-stage leads.</p>
+        </div>
+        <div id="admissionTaskSection"></div>
+      </section>
     </div>
   </div>
 
-  <script type="module" src="lost-leads.js"></script>
+  <script type="module" src="task-tracker.js"></script>
   <script type="module" src="layouts.js"></script>
 </body>
 </html>

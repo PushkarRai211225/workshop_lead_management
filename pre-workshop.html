@@ -20,6 +20,7 @@
         <a href="dashboard.html" class="sidebar-link">Dashboard</a>
         <a href="pre-workshop.html" class="sidebar-link">Workshop Calling</a>
         <a href="post-workshop.html" class="sidebar-link">Admission Calling</a>
+        <a href="task-tracker.html" class="sidebar-link" data-counselor-only="true">Task Tracker</a>
         <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
         <a href="monitoring.html" class="sidebar-link">Monitoring</a>
       </nav>
@@ -133,6 +134,41 @@
             <div class="modal-actions">
               <button type="submit" id="saveActivityBtn" class="btn-primary">Save</button>
               <button type="button" id="closeModalBtn" class="btn-ghost">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div id="taskModal" class="modal hidden">
+        <div class="modal-content card">
+          <h3 id="taskModalTitle">Create Task</h3>
+          <form id="taskForm">
+            <input type="hidden" id="taskLeadId" />
+            <input type="hidden" id="taskCategory" />
+            <div class="modal-row">
+              <label for="taskLeadName">Lead</label>
+              <input id="taskLeadName" type="text" disabled />
+            </div>
+            <div class="modal-row">
+              <label for="taskCounselor">Counselor</label>
+              <input id="taskCounselor" type="text" disabled />
+            </div>
+            <div class="modal-row">
+              <label for="taskTitle">Task Title</label>
+              <input id="taskTitle" type="text" required />
+            </div>
+            <div class="modal-row">
+              <label for="taskNotes">Notes</label>
+              <textarea id="taskNotes" rows="4" placeholder="Optional notes"></textarea>
+            </div>
+            <div class="modal-row">
+              <label for="taskDueDate">Due Date</label>
+              <input id="taskDueDate" type="date" required />
+            </div>
+            <p id="taskMessage" class="message" aria-live="polite"></p>
+            <div class="modal-actions">
+              <button type="submit" class="btn-primary">Create Task</button>
+              <button type="button" id="closeTaskModalBtn" class="btn-ghost">Cancel</button>
             </div>
           </form>
         </div>

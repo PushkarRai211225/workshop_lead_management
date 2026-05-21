@@ -187,6 +187,9 @@ textarea:focus {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: inherit;
   font-size: 0.9rem;
   font-weight: 700;
@@ -216,6 +219,18 @@ textarea:focus {
 .btn-update-status:hover {
   background: var(--surface-muted);
   border-color: #c8d2dd;
+}
+
+.btn-task {
+  background: var(--accent-soft);
+  border-color: #f3b08d;
+  color: #9a3412;
+}
+
+.btn-task:hover {
+  background: #ffd9c3;
+  border-color: #ea9a6b;
+  color: #7c2d12;
 }
 
 .credential-help {
@@ -591,6 +606,11 @@ td {
   word-break: break-word;
 }
 
+th:last-child,
+td:last-child {
+  min-width: 230px;
+}
+
 th {
   color: #667085;
   font-size: 0.76rem;
@@ -607,7 +627,33 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+.activity-panel .btn-ghost,
+.activity-panel .btn-update-status,
+.activity-panel .btn-task {
+  min-width: 88px;
+  white-space: nowrap;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.task-actions .btn-primary,
+.task-actions .btn-ghost {
+  min-width: 104px;
+  white-space: nowrap;
+}
+
+.muted-text {
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
 .status-summary {

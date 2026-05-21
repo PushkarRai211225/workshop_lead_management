@@ -1,4 +1,5 @@
 import { bootstrapLocalState, loadPersistedValue, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
+import { createTask, TASK_CATEGORY } from "./task-service.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
 const ALLOCATION_KEY = "dvCounselorAllocation";
@@ -22,9 +23,21 @@ const allocationMessage = document.getElementById("allocationMessage");
 const deleteAllLeadsBtn = document.getElementById("deleteAllLeadsBtn");
 const deleteLostLeadsBtn = document.getElementById("deleteLostLeadsBtn");
 const cleanupMessage = document.getElementById("cleanupMessage");
+const taskModal = document.getElementById("taskModal");
+const taskModalTitle = document.getElementById("taskModalTitle");
+const taskForm = document.getElementById("taskForm");
+const taskLeadIdInput = document.getElementById("taskLeadId");
+const taskCategoryInput = document.getElementById("taskCategory");
+const taskLeadNameInput = document.getElementById("taskLeadName");
+const taskCounselorInput = document.getElementById("taskCounselor");
+const taskTitleInput = document.getElementById("taskTitle");
+const taskNotesInput = document.getElementById("taskNotes");
+const taskDueDateInput = document.getElementById("taskDueDate");
+const taskMessage = document.getElementById("taskMessage");
 
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
 const isAdmin = session?.role === "admin";
+const canCreateTasks = session?.role === "counselor";
 
 function extractCounselorName(record) {
   return String(
@@ -1227,6 +1240,7 @@ function renderActivityStatusPanel(lead) {
     <div class="activity-panel">
       <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
       <button class="btn-update-status" data-lead-id="${lead.id}">Update</button>
+      ${canCreateTasks ? `<button class="btn-ghost btn-task" type="button" data-lead-id="${lead.id}">Task</button>` : ""}
     </div>
   `;
 }
@@ -1283,6 +1297,13 @@ function renderLeadTable(leads) {
     button.onclick = () => {
       const leadId = button.getAttribute("data-lead-id");
       openActivityStatusModal(leadId);
+    };
+  });
+
+  document.querySelectorAll(".btn-task").forEach((button) => {
+    button.onclick = () => {
+      const leadId = button.getAttribute("data-lead-id");
+      openTaskModal(leadId);
     };
   });
 }
@@ -1399,6 +1420,83 @@ function closeActivityStatusModal() {
   setActivityModalMode("edit");
 }
 
+function setTaskMessage(text, isError = true) {
+  if (!taskMessage) {
+    return;
+  }
+
+  taskMessage.textContent = text;
+  taskMessage.style.color = isError ? "#b42318" : "#0f766e";
+}
+
+function closeTaskModal() {
+  if (taskModal) {
+    taskModal.classList.add("hidden");
+  }
+  setTaskMessage("");
+}
+
+function openTaskModal(leadId) {
+  if (!canCreateTasks) {
+    return;
+  }
+
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+  if (!lead) {
+    return;
+  }
+
+  if (String(lead.counselor || "").trim().toLowerCase() !== getCounselorIdentity()) {
+    return;
+  }
+
+  taskLeadIdInput.value = lead.id;
+  taskCategoryInput.value = TASK_CATEGORY.workshop;
+  taskLeadNameInput.value = lead.name || "";
+  taskCounselorInput.value = lead.counselor || "Unassigned";
+  taskTitleInput.value = `Follow up with ${lead.name || "lead"}`;
+  taskNotesInput.value = "";
+  taskDueDateInput.value = "";
+  setTaskMessage("");
+  taskModalTitle.textContent = "Create Workshop Task";
+  taskModal.classList.remove("hidden");
+}
+
+async function handleTaskSubmit(event) {
+  event.preventDefault();
+
+  const leadId = taskLeadIdInput.value;
+  const title = taskTitleInput.value.trim();
+  const dueDate = taskDueDateInput.value;
+
+  if (!leadId || !title || !dueDate) {
+    setTaskMessage("Title and due date are required.", true);
+    return;
+  }
+
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+  if (!lead) {
+    setTaskMessage("Lead not found.", true);
+    return;
+  }
+
+  await createTask({
+    leadId: lead.id,
+    leadName: lead.name,
+    leadCounselor: lead.counselor || "Unassigned",
+    counselor: session?.name || lead.counselor || "Unassigned",
+    category: TASK_CATEGORY.workshop,
+    title,
+    notes: taskNotesInput.value.trim(),
+    dueDate
+  });
+
+  setTaskMessage("Task created and sent to Task Tracker.", false);
+  closeTaskModal();
+}
+
 function initPreWorkshopPage() {
   const modal = document.getElementById("activityStatusModal");
   if (modal) {
@@ -1420,6 +1518,20 @@ function initPreWorkshopPage() {
       renderAll();
     };
   }
+
+  if (taskModal && taskForm) {
+    document.getElementById("closeTaskModalBtn").onclick = closeTaskModal;
+    taskForm.onsubmit = handleTaskSubmit;
+  }
+
+  document.querySelectorAll(".btn-task").forEach((button) => {
+    button.addEventListener("click", () => {
+      const leadId = button.getAttribute("data-lead-id");
+      if (leadId) {
+        openTaskModal(leadId);
+      }
+    });
+  });
 
   setupAdminPanel();
 }

@@ -1,4 +1,5 @@
 import { bootstrapLocalState, loadPersistedValue, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
+import { createTask, TASK_CATEGORY } from "./task-service.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
 const SESSION_KEY = "dvWorkshopSession";
@@ -10,9 +11,21 @@ const postKpiSection = document.getElementById("postKpiSection");
 const postFilterBar = document.getElementById("postFilterBar");
 const postActivityMessage = document.getElementById("postActivityMessage");
 const postLeadTableSection = document.getElementById("postLeadTableSection");
+const taskModal = document.getElementById("taskModal");
+const taskModalTitle = document.getElementById("taskModalTitle");
+const taskForm = document.getElementById("taskForm");
+const taskLeadIdInput = document.getElementById("taskLeadId");
+const taskCategoryInput = document.getElementById("taskCategory");
+const taskLeadNameInput = document.getElementById("taskLeadName");
+const taskCounselorInput = document.getElementById("taskCounselor");
+const taskTitleInput = document.getElementById("taskTitle");
+const taskNotesInput = document.getElementById("taskNotes");
+const taskDueDateInput = document.getElementById("taskDueDate");
+const taskMessage = document.getElementById("taskMessage");
 
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
 const isAdmin = session?.role === "admin";
+const canCreateTasks = session?.role === "counselor";
 
 const DEFAULT_FILTER = {
   search: "",
@@ -486,6 +499,7 @@ function renderActivityPanel(lead) {
     <div class="activity-panel">
       <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
       <button class="btn-update-status" data-lead-id="${lead.id}">Update</button>
+      ${canCreateTasks ? `<button class="btn-ghost btn-task" type="button" data-lead-id="${lead.id}">Task</button>` : ""}
     </div>
   `;
 }
@@ -540,6 +554,13 @@ function renderLeadTable(leads) {
     button.onclick = () => {
       const leadId = button.getAttribute("data-lead-id");
       openPostActivityModal(leadId);
+    };
+  });
+
+  document.querySelectorAll(".btn-task").forEach((button) => {
+    button.onclick = () => {
+      const leadId = button.getAttribute("data-lead-id");
+      openTaskModal(leadId);
     };
   });
 }
@@ -670,6 +691,83 @@ function closePostModal() {
   setPostActivityModalMode("edit");
 }
 
+function setTaskMessage(text, isError = true) {
+  if (!taskMessage) {
+    return;
+  }
+
+  taskMessage.textContent = text;
+  taskMessage.style.color = isError ? "#b42318" : "#0f766e";
+}
+
+function closeTaskModal() {
+  if (taskModal) {
+    taskModal.classList.add("hidden");
+  }
+  setTaskMessage("");
+}
+
+function openTaskModal(leadId) {
+  if (!canCreateTasks) {
+    return;
+  }
+
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+  if (!lead) {
+    return;
+  }
+
+  if (String(lead.counselor || "").trim().toLowerCase() !== getCounselorIdentity()) {
+    return;
+  }
+
+  taskLeadIdInput.value = lead.id;
+  taskCategoryInput.value = TASK_CATEGORY.admission;
+  taskLeadNameInput.value = lead.name || "";
+  taskCounselorInput.value = lead.counselor || "Unassigned";
+  taskTitleInput.value = `Follow up with ${lead.name || "lead"}`;
+  taskNotesInput.value = "";
+  taskDueDateInput.value = "";
+  setTaskMessage("");
+  taskModalTitle.textContent = "Create Admission Task";
+  taskModal.classList.remove("hidden");
+}
+
+async function handleTaskSubmit(event) {
+  event.preventDefault();
+
+  const leadId = taskLeadIdInput.value;
+  const title = taskTitleInput.value.trim();
+  const dueDate = taskDueDateInput.value;
+
+  if (!leadId || !title || !dueDate) {
+    setTaskMessage("Title and due date are required.", true);
+    return;
+  }
+
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+  if (!lead) {
+    setTaskMessage("Lead not found.", true);
+    return;
+  }
+
+  await createTask({
+    leadId: lead.id,
+    leadName: lead.name,
+    leadCounselor: lead.counselor || "Unassigned",
+    counselor: session?.name || lead.counselor || "Unassigned",
+    category: TASK_CATEGORY.admission,
+    title,
+    notes: taskNotesInput.value.trim(),
+    dueDate
+  });
+
+  setTaskMessage("Task created and sent to Task Tracker.", false);
+  closeTaskModal();
+}
+
 function initPostWorkshopPage() {
   const modal = document.getElementById("postActivityModal");
   if (!modal) {
@@ -699,6 +797,20 @@ function initPostWorkshopPage() {
     renderAll();
   };
 }
+
+  if (taskModal && taskForm) {
+    document.getElementById("closeTaskModalBtn").onclick = closeTaskModal;
+    taskForm.onsubmit = handleTaskSubmit;
+  }
+
+  document.querySelectorAll(".btn-task").forEach((button) => {
+    button.addEventListener("click", () => {
+      const leadId = button.getAttribute("data-lead-id");
+      if (leadId) {
+        openTaskModal(leadId);
+      }
+    });
+  });
 
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", initPostWorkshopPage);

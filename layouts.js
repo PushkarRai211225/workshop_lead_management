@@ -6,6 +6,7 @@ const PAGE_PERMISSION_MAP = {
   "dashboard.html": "dashboard",
   "pre-workshop.html": "preWorkshop",
   "post-workshop.html": "postWorkshop",
+  "task-tracker.html": "taskTracker",
   "lost-leads.html": "lostLeads",
   "monitoring.html": "monitoring"
 };
@@ -14,6 +15,7 @@ const DEFAULT_PERMISSIONS = {
   dashboard: false,
   preWorkshop: true,
   postWorkshop: true,
+  taskTracker: true,
   lostLeads: true,
   monitoring: true
 };
@@ -86,13 +88,23 @@ function getFirstAllowedPage(permissions) {
 
 function applyRoleVisibility(session) {
   const adminOnlyElements = document.querySelectorAll("[data-admin-only='true']");
+  const counselorOnlyElements = document.querySelectorAll("[data-counselor-only='true']");
   const isAdmin = session.role === "admin";
+  const isCounselor = session.role === "counselor";
   adminOnlyElements.forEach((element) => {
     element.classList.toggle("hidden", !isAdmin);
+  });
+  counselorOnlyElements.forEach((element) => {
+    element.classList.toggle("hidden", !isCounselor);
   });
 }
 
 function enforceAccess(session) {
+  if (current === "task-tracker.html" && session.role !== "counselor") {
+    window.location.href = session.role === "admin" ? "dashboard.html" : "index.html";
+    return false;
+  }
+
   if (current === "counselor-management.html" && session.role !== "admin") {
     const fallback =
       session.role === "counselor"

@@ -1,6 +1,7 @@
 const LEADS_KEY = "dvWorkshopLeads";
 const COUNSELORS_KEY = "dvCounselors";
 const ALLOCATION_KEY = "dvCounselorAllocation";
+const TASKS_KEY = "dvWorkshopTasks";
 
 function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
   const controller = new AbortController();
@@ -50,6 +51,7 @@ export async function bootstrapLocalState() {
   const localLeads = safeParseArray(localStorage.getItem(LEADS_KEY));
   const localCounselors = safeParseArray(localStorage.getItem(COUNSELORS_KEY));
   const localAllocation = safeParseArray(localStorage.getItem(ALLOCATION_KEY));
+  const localTasks = safeParseArray(localStorage.getItem(TASKS_KEY));
 
   try {
     const response = await fetchWithTimeout("/api/state", {
@@ -67,26 +69,31 @@ export async function bootstrapLocalState() {
     const serverLeads = Array.isArray(payload.leads) ? payload.leads : [];
     const serverCounselors = Array.isArray(payload.counselors) ? payload.counselors : [];
     const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
+    const serverTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
 
     const serverLooksFresh =
       !serverLeads.length
       && !serverCounselors.length
-      && !serverAllocation.length;
+      && !serverAllocation.length
+      && !serverTasks.length;
 
     // Prefer server state whenever it exists, even when arrays are empty.
     // Only fall back to local cache when the server is completely fresh.
     const mergedLeads = serverLooksFresh && localLeads.length ? localLeads : serverLeads;
     const mergedCounselors = serverLooksFresh && localCounselors.length ? localCounselors : serverCounselors;
     const mergedAllocation = serverLooksFresh && localAllocation.length ? localAllocation : serverAllocation;
+    const mergedTasks = serverTasks.length ? serverTasks : localTasks;
 
     localStorage.setItem(LEADS_KEY, JSON.stringify(mergedLeads));
     localStorage.setItem(COUNSELORS_KEY, JSON.stringify(mergedCounselors));
     localStorage.setItem(ALLOCATION_KEY, JSON.stringify(mergedAllocation));
+    localStorage.setItem(TASKS_KEY, JSON.stringify(mergedTasks));
 
-    const shouldBackfillServer = serverLooksFresh && (
+    const shouldBackfillServer = (serverLooksFresh || (!serverTasks.length && localTasks.length)) && (
       mergedLeads.length
       || mergedCounselors.length
       || mergedAllocation.length
+      || mergedTasks.length
     );
 
     if (shouldBackfillServer) {
@@ -98,7 +105,8 @@ export async function bootstrapLocalState() {
         body: JSON.stringify({
           leads: mergedLeads,
           counselors: mergedCounselors,
-          allocation: mergedAllocation
+          allocation: mergedAllocation,
+          tasks: mergedTasks
         })
       }, 4000);
     }
@@ -112,13 +120,14 @@ export async function syncStateFromLocal() {
     const leads = safeParseArray(localStorage.getItem(LEADS_KEY));
     const counselors = safeParseArray(localStorage.getItem(COUNSELORS_KEY));
     const allocation = safeParseArray(localStorage.getItem(ALLOCATION_KEY));
+    const tasks = safeParseArray(localStorage.getItem(TASKS_KEY));
 
     const response = await fetchWithTimeout("/api/state", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ leads, counselors, allocation })
+      body: JSON.stringify({ leads, counselors, allocation, tasks })
     }, 4000);
 
     return { ok: response.ok };

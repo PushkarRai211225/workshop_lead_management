@@ -65,6 +65,9 @@ function sanitizeState(payload = {}) {
   if (Array.isArray(payload.allocation)) {
     next.allocation = payload.allocation;
   }
+  if (Array.isArray(payload.tasks)) {
+    next.tasks = payload.tasks;
+  }
 
   return next;
 }
@@ -80,6 +83,7 @@ async function getStateDoc() {
     leads: [],
     counselors: [],
     allocation: [],
+    tasks: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -95,6 +99,7 @@ app.get("/api/state", async (_req, res) => {
       leads: Array.isArray(state.leads) ? state.leads : [],
       counselors: Array.isArray(state.counselors) ? state.counselors : [],
       allocation: Array.isArray(state.allocation) ? state.allocation : [],
+      tasks: Array.isArray(state.tasks) ? state.tasks : [],
       updatedAt: state.updatedAt || null
     });
   } catch (error) {
@@ -128,6 +133,7 @@ app.put("/api/state", async (req, res) => {
       leads: Array.isArray(state.leads) ? state.leads : [],
       counselors: Array.isArray(state.counselors) ? state.counselors : [],
       allocation: Array.isArray(state.allocation) ? state.allocation : [],
+      tasks: Array.isArray(state.tasks) ? state.tasks : [],
       updatedAt: state.updatedAt || null
     });
   } catch (error) {
@@ -160,6 +166,7 @@ app.put("/api/leads", async (req, res) => {
         $setOnInsert: {
           counselors: [],
           allocation: [],
+          tasks: [],
           createdAt: new Date().toISOString()
         }
       },
@@ -232,6 +239,7 @@ app.put("/api/allocation", async (req, res) => {
         $setOnInsert: {
           leads: [],
           counselors: [],
+          tasks: [],
           createdAt: new Date().toISOString()
         }
       },
