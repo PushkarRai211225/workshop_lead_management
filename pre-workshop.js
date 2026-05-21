@@ -200,6 +200,48 @@ function getAllocation() {
   }
 }
 
+async function getCounselorNamesForAllocation() {
+  const localRaw = localStorage.getItem(COUNSELORS_KEY);
+  if (localRaw) {
+    try {
+      const localCounselors = JSON.parse(localRaw);
+      if (Array.isArray(localCounselors) && localCounselors.length) {
+        return [...new Set(
+          localCounselors
+            .map((item) => String(item?.name || "").trim())
+            .filter(Boolean)
+        )];
+      }
+    } catch {
+      // Continue with API fallback.
+    }
+  }
+
+  try {
+    const response = await fetch("/api/state", {
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = await response.json();
+    const counselors = Array.isArray(payload?.counselors) ? payload.counselors : [];
+
+    localStorage.setItem(COUNSELORS_KEY, JSON.stringify(counselors));
+
+    return [...new Set(
+      counselors
+        .map((item) => String(item?.name || "").trim())
+        .filter(Boolean)
+    )];
+  } catch {
+    return [];
+  }
+}
+
 function getActiveCounselorNames() {
   const raw = localStorage.getItem(COUNSELORS_KEY);
   let names = [];
@@ -606,20 +648,14 @@ function setupAdminPanel() {
   }
 
   const hydrateAllocationPanel = async () => {
-    let names = getActiveCounselorNames();
-    if (!names.length) {
-      names = await fetchCounselorNamesFromApi();
-    }
-
+    const names = await getCounselorNamesForAllocation();
     const existing = getAllocation();
-    const merged = names.length ? mergeAllocationNames(names, existing) : existing;
+    const merged = mergeAllocationNames(names, existing);
 
-    if (merged.length !== existing.length) {
-      saveAllocation(merged);
-    }
+    saveAllocation(merged);
 
     if (!merged.length) {
-      renderAllocationRows(syncAllocationWithCounselors());
+      renderAllocationRows([]);
       return;
     }
 
