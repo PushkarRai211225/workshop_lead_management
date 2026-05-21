@@ -47,18 +47,26 @@ export async function bootstrapLocalState() {
     const serverCounselors = Array.isArray(payload.counselors) ? payload.counselors : [];
     const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
 
-    const mergedLeads = serverLeads.length ? serverLeads : localLeads;
-    const mergedCounselors = serverCounselors.length ? serverCounselors : localCounselors;
-    const mergedAllocation = serverAllocation.length ? serverAllocation : localAllocation;
+    const serverLooksFresh =
+      !serverLeads.length
+      && !serverCounselors.length
+      && !serverAllocation.length;
+
+    // Prefer server state whenever it exists, even when arrays are empty.
+    // Only fall back to local cache when the server is completely fresh.
+    const mergedLeads = serverLooksFresh && localLeads.length ? localLeads : serverLeads;
+    const mergedCounselors = serverLooksFresh && localCounselors.length ? localCounselors : serverCounselors;
+    const mergedAllocation = serverLooksFresh && localAllocation.length ? localAllocation : serverAllocation;
 
     localStorage.setItem(LEADS_KEY, JSON.stringify(mergedLeads));
     localStorage.setItem(COUNSELORS_KEY, JSON.stringify(mergedCounselors));
     localStorage.setItem(ALLOCATION_KEY, JSON.stringify(mergedAllocation));
 
-    const shouldBackfillServer =
-      (!serverLeads.length && mergedLeads.length)
-      || (!serverCounselors.length && mergedCounselors.length)
-      || (!serverAllocation.length && mergedAllocation.length);
+    const shouldBackfillServer = serverLooksFresh && (
+      mergedLeads.length
+      || mergedCounselors.length
+      || mergedAllocation.length
+    );
 
     if (shouldBackfillServer) {
       await fetchWithTimeout("/api/state", {
