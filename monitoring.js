@@ -1,4 +1,4 @@
-import { bootstrapLocalState } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, savePersistedValue } from "./state-sync.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
 const SESSION_KEY = "dvWorkshopSession";
@@ -24,6 +24,13 @@ let timelineFilter = {
   type: "week",
   startDate: "",
   endDate: ""
+};
+
+const TIMELINE_STORAGE_KEY = "dvWorkshopMonitoringTimeline";
+
+timelineFilter = {
+  ...timelineFilter,
+  ...loadPersistedValue(TIMELINE_STORAGE_KEY, {})
 };
 
 function isCounselorSession() {
@@ -59,6 +66,10 @@ function getCounselorIdentity() {
   }
 }
 
+function persistTimelineFilter() {
+  savePersistedValue(TIMELINE_STORAGE_KEY, timelineFilter);
+}
+
 function getScopedLeads(allLeads) {
   if (!isCounselorSession()) {
     return allLeads;
@@ -78,24 +89,26 @@ function normalizeLeadFields(leads) {
   leads.forEach((lead) => {
     lead.name = lead.name || "";
     lead.email = (lead.email || "").toLowerCase();
-    lead.workshop = lead.workshop || "General";
+    lead.workshop = lead.workshop || "";
     lead.createdAt = lead.createdAt || new Date().toISOString().slice(0, 10);
 
-    lead.dialed = lead.dialed || "No";
-    lead.callStatus = lead.callStatus || "CNC";
-    // Missing wsStatus should not imply the lead is lost.
-    lead.wsStatus = lead.wsStatus || "Interested";
-    lead.whatsappInvite = lead.whatsappInvite || "No";
+    lead.dialed = lead.dialed || "";
+    lead.callStatus = lead.callStatus || "";
+    lead.wsStatus = lead.wsStatus || "";
+    lead.whatsappInvite = lead.whatsappInvite || "";
     lead.counselor = lead.counselor || "Unassigned";
 
-    lead.postDialed = lead.postDialed || "No";
-    lead.coursePitched = lead.coursePitched || "No";
-    lead.courseStatus = lead.courseStatus || "Interested";
-    lead.admissionStatus = lead.admissionStatus || "In-Converstion";
+    lead.postDialed = lead.postDialed || "";
+    lead.coursePitched = lead.coursePitched || "";
+    lead.courseStatus = lead.courseStatus || "";
+    lead.admissionStatus = lead.admissionStatus || "";
     lead.postStatusUpdated = typeof lead.postStatusUpdated === "boolean" ? lead.postStatusUpdated : false;
-
-    lead.preActivityUpdates = Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0;
-    lead.postActivityUpdates = Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0;
+    lead.workshopActivityHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
+    lead.admissionActivityHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
+    lead.preActivityUpdates = lead.workshopActivityHistory.length
+      || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
+    lead.postActivityUpdates = lead.admissionActivityHistory.length
+      || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
   });
 }
 
@@ -183,16 +196,19 @@ function bindTimelineControls() {
 
   monitoringTimelineSelect.onchange = (event) => {
     timelineFilter.type = event.target.value;
+    persistTimelineFilter();
     monitoringStartDateWrap.classList.toggle("hidden", timelineFilter.type !== "custom");
     monitoringEndDateWrap.classList.toggle("hidden", timelineFilter.type !== "custom");
   };
 
   monitoringStartDate.onchange = (event) => {
     timelineFilter.startDate = event.target.value;
+    persistTimelineFilter();
   };
 
   monitoringEndDate.onchange = (event) => {
     timelineFilter.endDate = event.target.value;
+    persistTimelineFilter();
   };
 
   applyMonitoringTimeline.onclick = () => {
@@ -205,6 +221,7 @@ function bindTimelineControls() {
       startDate: "",
       endDate: ""
     };
+    persistTimelineFilter();
     bindTimelineControls();
     renderAll();
   };
@@ -215,23 +232,15 @@ function isPostWorkshopLead(lead) {
 }
 
 function isLostLead(lead) {
-  if (lead.wsStatus === "Not Interested") {
-    return true;
-  }
-
-  if (isPostWorkshopLead(lead) && lead.postStatusUpdated && lead.courseStatus === "Not Interested") {
-    return true;
-  }
-
-  return false;
+  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
 }
 
 function getPreLeads(allLeads) {
-  return allLeads.filter((lead) => !isPostWorkshopLead(lead));
+  return allLeads.filter((lead) => !isLostLead(lead));
 }
 
 function getPostLeads(allLeads) {
-  return allLeads.filter((lead) => isPostWorkshopLead(lead));
+  return allLeads.filter((lead) => !isLostLead(lead));
 }
 
 function formatBreakdown(items, key, options = {}) {
@@ -268,16 +277,17 @@ function getCounselors(allLeads) {
 function buildRows(counselors, stageLeads, activityKey, statusKey) {
   return counselors.map((counselor) => {
     const leads = stageLeads.filter((lead) => (lead.counselor || "Unassigned") === counselor);
-    const activities = leads.reduce((sum, lead) => sum + (Number(lead[activityKey]) || 0), 0);
-    const interested = leads.filter((lead) => lead[statusKey] === "Interested").length;
-    const notInterested = leads.filter((lead) => lead[statusKey] === "Not Interested").length;
-    const enrolled = leads.filter((lead) => lead.admissionStatus === "Enrolled").length;
-    const won = leads.filter((lead) => lead.admissionStatus === "Won").length;
+    const activityLeads = leads.filter((lead) => (Number(lead[activityKey]) || 0) > 0);
+    const activities = activityLeads.reduce((sum, lead) => sum + (Number(lead[activityKey]) || 0), 0);
+    const interested = activityLeads.filter((lead) => lead[statusKey] === "Interested").length;
+    const notInterested = activityLeads.filter((lead) => lead[statusKey] === "Not Interested").length;
+    const enrolled = activityLeads.filter((lead) => lead.admissionStatus === "Enrolled").length;
+    const won = activityLeads.filter((lead) => lead.admissionStatus === "Won").length;
 
     return {
       counselor,
       activities,
-      workshops: formatBreakdown(leads, "workshop"),
+      workshops: formatBreakdown(activityLeads, "workshop"),
       interested,
       notInterested,
       enrolled,
@@ -344,11 +354,11 @@ function renderKpis(allLeads, preLeads, postLeads) {
       <h2>${overallActivity}</h2>
     </article>
     <article class="card kpi-card">
-      <p>Pre-Workshop Activity</p>
+      <p>Workshop Calling Activity</p>
       <h2>${preActivity}</h2>
     </article>
     <article class="card kpi-card">
-      <p>Post-Workshop Activity</p>
+      <p>Admission Calling Activity</p>
       <h2>${postActivity}</h2>
     </article>
   `;

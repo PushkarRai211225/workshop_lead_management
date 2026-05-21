@@ -1,4 +1,4 @@
-import { bootstrapLocalState, syncStateFromLocal } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
 const ALLOCATION_KEY = "dvCounselorAllocation";
@@ -17,9 +17,11 @@ const importLeadsBtn = document.getElementById("importLeadsBtn");
 const importSummary = document.getElementById("importSummary");
 const importMessage = document.getElementById("importMessage");
 const allocationRows = document.getElementById("allocationRows");
-const addAllocationRowBtn = document.getElementById("addAllocationRowBtn");
 const saveAllocationBtn = document.getElementById("saveAllocationBtn");
 const allocationMessage = document.getElementById("allocationMessage");
+const deleteAllLeadsBtn = document.getElementById("deleteAllLeadsBtn");
+const deleteLostLeadsBtn = document.getElementById("deleteLostLeadsBtn");
+const cleanupMessage = document.getElementById("cleanupMessage");
 
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
 const isAdmin = session?.role === "admin";
@@ -98,18 +100,6 @@ function getScopedLeads(allLeads) {
   );
 }
 
-let filter = {
-  timeline: "week",
-  startDate: "",
-  endDate: "",
-  search: "",
-  workshop: "All",
-  dialed: "All",
-  callStatus: "All",
-  wsStatus: "All",
-  whatsappInvite: "All"
-};
-
 const DEFAULT_FILTER = {
   timeline: "week",
   startDate: "",
@@ -122,9 +112,18 @@ const DEFAULT_FILTER = {
   whatsappInvite: "All"
 };
 
+const FILTER_STORAGE_KEY = "dvWorkshopWorkshopCallingFilters";
+let filter = {
+  ...DEFAULT_FILTER,
+  ...loadPersistedValue(FILTER_STORAGE_KEY, {})
+};
+
 const DEFAULT_ALLOCATION = [];
 
 let modalLeadId = null;
+let modalMode = "edit";
+
+const activityFields = ["modalDialed", "modalCallStatus", "modalWsStatus", "modalWhatsappInvite"];
 
 function toIsoDate(date = new Date()) {
   return date.toISOString().slice(0, 10);
@@ -133,6 +132,30 @@ function toIsoDate(date = new Date()) {
 function setMessage(element, text, isError = true) {
   element.textContent = text;
   element.style.color = isError ? "#b42318" : "#0f766e";
+}
+
+function persistFilterState() {
+  savePersistedValue(FILTER_STORAGE_KEY, filter);
+}
+
+function normalizeFilterState(leads) {
+  const workshops = getUniqueWorkshops(leads);
+  const validWorkshop = filter.workshop === "All" || workshops.includes(filter.workshop);
+
+  const nextFilter = {
+    ...filter,
+    workshop: validWorkshop ? (filter.workshop || "All") : "All",
+    dialed: filter.dialed || "All",
+    callStatus: filter.callStatus || "All",
+    wsStatus: filter.wsStatus || "All",
+    whatsappInvite: filter.whatsappInvite || "All"
+  };
+
+  const changed = Object.keys(nextFilter).some((key) => nextFilter[key] !== filter[key]);
+  if (changed) {
+    filter = nextFilter;
+    persistFilterState();
+  }
 }
 
 function getDefaultWsStatus(lead) {
@@ -160,23 +183,27 @@ function normalizeLeadFields(leads) {
   leads.forEach((lead) => {
     lead.name = lead.name || "";
     lead.email = (lead.email || "").toLowerCase();
-    lead.workshop = lead.workshop || "General";
+    lead.workshop = lead.workshop || "";
     lead.createdAt = lead.createdAt || toIsoDate();
 
     lead.status = lead.status || "New";
-    lead.dialed = normalizeYesNo(lead.dialed, "No");
-    lead.callStatus = lead.callStatus || "CNC";
-    lead.wsStatus = lead.wsStatus || getDefaultWsStatus(lead);
-    lead.whatsappInvite = normalizeYesNo(lead.whatsappInvite, "No");
+    lead.dialed = lead.dialed || "";
+    lead.callStatus = lead.callStatus || "";
+    lead.wsStatus = lead.wsStatus || "";
+    lead.whatsappInvite = lead.whatsappInvite || "";
     lead.counselor = lead.counselor || "Unassigned";
 
-    lead.postDialed = normalizeYesNo(lead.postDialed, "No");
-    lead.coursePitched = lead.coursePitched || "No";
-    lead.courseStatus = lead.courseStatus || "Interested";
-    lead.admissionStatus = lead.admissionStatus || "In-Converstion";
+    lead.postDialed = lead.postDialed || "";
+    lead.coursePitched = lead.coursePitched || "";
+    lead.courseStatus = lead.courseStatus || "";
+    lead.admissionStatus = lead.admissionStatus || "";
     lead.postStatusUpdated = typeof lead.postStatusUpdated === "boolean" ? lead.postStatusUpdated : false;
-    lead.preActivityUpdates = Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0;
-    lead.postActivityUpdates = Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0;
+    lead.workshopActivityHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
+    lead.admissionActivityHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
+    lead.preActivityUpdates = lead.workshopActivityHistory.length
+      || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
+    lead.postActivityUpdates = lead.admissionActivityHistory.length
+      || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
   });
 }
 
@@ -199,6 +226,38 @@ function getAllLeads() {
 function saveAllLeads(leads) {
   localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
   void syncStateFromLocal();
+}
+
+function deleteWholeLeadDataset() {
+  const confirmed = window.confirm("Delete the entire lead dataset? This cannot be undone.");
+  if (!confirmed) {
+    return;
+  }
+
+  saveAllLeads([]);
+  setMessage(cleanupMessage, "Whole lead dataset deleted successfully.", false);
+  renderAll();
+}
+
+function deleteLostLeads() {
+  const allLeads = getAllLeads();
+  const retainedLeads = allLeads.filter((lead) => !isLostLead(lead));
+  const removedCount = allLeads.length - retainedLeads.length;
+
+  if (!removedCount) {
+    setMessage(cleanupMessage, "No lost leads found to delete.", false);
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete ${removedCount} lost lead${removedCount === 1 ? "" : "s"}? This cannot be undone.`);
+  if (!confirmed) {
+    return;
+  }
+
+  normalizeLeadFields(retainedLeads);
+  saveAllLeads(retainedLeads);
+  setMessage(cleanupMessage, `${removedCount} lost lead${removedCount === 1 ? "" : "s"} deleted successfully.`, false);
+  renderAll();
 }
 
 function saveAllocation(allocation) {
@@ -397,7 +456,7 @@ function validateAllocation(allocation) {
 function renderAllocationRows(allocation) {
   if (!allocation.length) {
     allocationRows.innerHTML = `
-      <p class="block-help">No counselors found yet. Add counselors in Counselor Management or use Add Counselor Row.</p>
+      <p class="block-help">No counselors found yet. Add counselors in Counselor Management.</p>
     `;
     return;
   }
@@ -490,15 +549,20 @@ function normalizeHeader(key) {
 }
 
 function pickValue(row, aliases) {
-  const map = Object.keys(row).reduce((acc, key) => {
-    acc[normalizeHeader(key)] = row[key];
-    return acc;
-  }, {});
+  const entries = Object.entries(row).map(([key, value]) => [normalizeHeader(key), value]);
+  const normalizedAliases = aliases.map((alias) => normalizeHeader(alias));
 
-  for (const alias of aliases) {
-    const value = map[alias];
-    if (value !== undefined && String(value).trim() !== "") {
-      return value;
+  for (const alias of normalizedAliases) {
+    const exactMatch = entries.find(([key]) => key === alias);
+    if (exactMatch && String(exactMatch[1]).trim() !== "") {
+      return exactMatch[1];
+    }
+  }
+
+  for (const alias of normalizedAliases) {
+    const partialMatch = entries.find(([key]) => key.includes(alias) || alias.includes(key));
+    if (partialMatch && String(partialMatch[1]).trim() !== "") {
+      return partialMatch[1];
     }
   }
 
@@ -510,6 +574,20 @@ function normalizeCreatedAt(value) {
     return toIsoDate();
   }
 
+  const trimmedValue = String(value).trim();
+  const serialValue = Number(value);
+  const looksLikeSerial = trimmedValue !== "" && /^\d+(\.\d+)?$/.test(trimmedValue) && Number.isFinite(serialValue);
+
+  if ((typeof value === "number" || looksLikeSerial) && typeof XLSX !== "undefined" && XLSX.SSF?.parse_date_code) {
+    const parsed = XLSX.SSF.parse_date_code(serialValue);
+    if (parsed) {
+      const date = new Date(parsed.y, parsed.m - 1, parsed.d);
+      if (!Number.isNaN(date.getTime())) {
+        return toIsoDate(date);
+      }
+    }
+  }
+
   const asDate = new Date(value);
   if (!Number.isNaN(asDate.getTime())) {
     return toIsoDate(asDate);
@@ -518,11 +596,10 @@ function normalizeCreatedAt(value) {
   return toIsoDate();
 }
 
-function buildLeadFromImportRow(row, id) {
-  const name = String(pickValue(row, ["name", "fullname", "leadname"])).trim();
-  const email = String(pickValue(row, ["email", "emailid", "mail"])).trim().toLowerCase();
-  const workshop = String(pickValue(row, ["workshop", "workshopname", "program"]))
-    .trim();
+function buildLeadFromImportRow(row, id, workshopName) {
+  const name = String(pickValue(row, ["studentname", "fullname", "leadname", "name"])).trim();
+  const email = String(pickValue(row, ["emailaddress", "emailid", "mail", "email"])).trim().toLowerCase();
+  const workshop = String(workshopName || "").trim();
 
   if (!name) {
     return { error: "Name is required." };
@@ -540,41 +617,70 @@ function buildLeadFromImportRow(row, id) {
     id,
     name,
     email,
-    phone: String(pickValue(row, ["phone", "phonenumber", "mobile", "contact"]))
+    phone: String(pickValue(row, ["phone", "phonenumber", "number", "mobile", "contact"]))
       .trim(),
     workshop,
     status: String(pickValue(row, ["status"])) || "New",
-    createdAt: normalizeCreatedAt(pickValue(row, ["createdat", "leadimportdate", "date"])),
-    dialed: normalizeYesNo(pickValue(row, ["dialed"]), "No"),
-    callStatus: String(pickValue(row, ["callstatus"])) || "CNC",
-    wsStatus: String(pickValue(row, ["wsstatus", "workshopstatus"])) || "Interested",
-    whatsappInvite: normalizeYesNo(
-      pickValue(row, ["whatsappinvite", "whatsappinvitationsent", "whatsapp"]),
-      "No"
-    ),
+    createdAt: toIsoDate(),
+    dialed: "",
+    callStatus: "",
+    wsStatus: "",
+    whatsappInvite: "",
     counselor: "Unassigned",
-    postDialed: "No",
-    coursePitched: "No",
-    courseStatus: "Interested",
-    admissionStatus: "In-Converstion",
+    postDialed: "",
+    coursePitched: "",
+    courseStatus: "",
+    admissionStatus: "",
     postStatusUpdated: false,
     preActivityUpdates: 0,
-    postActivityUpdates: 0
+    postActivityUpdates: 0,
+    workshopActivityHistory: [],
+    admissionActivityHistory: []
   };
 
   return { lead };
 }
 
+function mergeImportedLead(existingLead, importedLead) {
+  const preservedWorkshopHistory = Array.isArray(existingLead.workshopActivityHistory)
+    ? existingLead.workshopActivityHistory
+    : [];
+  const preservedAdmissionHistory = Array.isArray(existingLead.admissionActivityHistory)
+    ? existingLead.admissionActivityHistory
+    : [];
+
+  return {
+    ...existingLead,
+    ...importedLead,
+    id: existingLead.id,
+    counselor: existingLead.counselor || importedLead.counselor || "Unassigned",
+    workshopActivityHistory: preservedWorkshopHistory,
+    admissionActivityHistory: preservedAdmissionHistory,
+    preActivityUpdates: preservedWorkshopHistory.length,
+    postActivityUpdates: preservedAdmissionHistory.length,
+    postStatusUpdated: typeof existingLead.postStatusUpdated === "boolean" ? existingLead.postStatusUpdated : false
+  };
+}
+
 async function parseImportFile(file) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) {
+  const sheetNames = workbook.SheetNames || [];
+  if (!sheetNames.length) {
     return [];
   }
 
-  const sheet = workbook.Sheets[sheetName];
-  return XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+  return sheetNames.flatMap((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) {
+      return [];
+    }
+
+    return XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false }).map((row) => ({
+      ...row,
+      __workshopName: sheetName
+    }));
+  });
 }
 
 function updateImportSummary(total, success, failed) {
@@ -622,45 +728,68 @@ async function handleLeadImport() {
     return;
   }
 
-  const allLeads = getAllLeads();
-  const existingEmails = new Set(allLeads.map((lead) => String(lead.email || "").toLowerCase()));
+  const nextLeads = getAllLeads();
+  const leadIndexByEmail = new Map(
+    nextLeads.map((lead, index) => [String(lead.email || "").toLowerCase(), index])
+  );
 
-  const validLeads = [];
+  const importedRecords = [];
   const failed = [];
-  let nextId = Math.max(...allLeads.map((lead) => Number(lead.id) || 0), 0) + 1;
+  let createdCount = 0;
+  let updatedCount = 0;
+  let nextId = Math.max(...nextLeads.map((lead) => Number(lead.id) || 0), 0) + 1;
 
   rows.forEach((row, idx) => {
-    const { lead, error } = buildLeadFromImportRow(row, nextId);
+    const { lead, error } = buildLeadFromImportRow(row, nextId, row.__workshopName);
     if (error) {
       failed.push(`Row ${idx + 2}: ${error}`);
       return;
     }
 
-    if (existingEmails.has(lead.email)) {
-      failed.push(`Row ${idx + 2}: Duplicate email ${lead.email}`);
+    const existingIndex = leadIndexByEmail.get(lead.email);
+    if (existingIndex !== undefined) {
+      nextLeads[existingIndex] = mergeImportedLead(nextLeads[existingIndex], lead);
+      importedRecords.push({ index: existingIndex, lead: nextLeads[existingIndex] });
+      updatedCount += 1;
       return;
     }
 
-    existingEmails.add(lead.email);
-    validLeads.push(lead);
+    nextLeads.push(lead);
+    importedRecords.push({ index: nextLeads.length - 1, lead });
+    leadIndexByEmail.set(lead.email, nextLeads.length - 1);
+    createdCount += 1;
     nextId += 1;
   });
 
-  const assignments = createCounselorAssignments(validLeads.length, allocationValidation.cleaned);
-  validLeads.forEach((lead, index) => {
-    lead.counselor = assignments[index] || allocationValidation.cleaned[0].name;
+  const recordsNeedingAssignment = importedRecords.filter(({ lead }) => {
+    const counselor = String(lead.counselor || "").trim().toLowerCase();
+    return !counselor || counselor === "unassigned";
   });
 
-  const updatedLeads = [...allLeads, ...validLeads];
-  normalizeLeadFields(updatedLeads);
-  saveAllLeads(updatedLeads);
+  const assignments = createCounselorAssignments(recordsNeedingAssignment.length, allocationValidation.cleaned);
+  recordsNeedingAssignment.forEach((record, index) => {
+    const assignedCounselor = assignments[index] || allocationValidation.cleaned[0].name;
+    record.lead.counselor = assignedCounselor;
+    nextLeads[record.index] = record.lead;
+  });
 
-  updateImportSummary(rows.length, validLeads.length, failed.length);
+  normalizeLeadFields(nextLeads);
+  saveAllLeads(nextLeads);
+  await syncStateFromLocal();
+
+  updateImportSummary(rows.length, importedRecords.length, failed.length);
 
   if (failed.length) {
     setMessage(importMessage, `Imported with ${failed.length} failures. Example: ${failed[0]}`, true);
   } else {
-    setMessage(importMessage, `Imported ${validLeads.length} leads successfully.`, false);
+    const messageParts = [];
+    if (createdCount) {
+      messageParts.push(`created ${createdCount}`);
+    }
+    if (updatedCount) {
+      messageParts.push(`updated ${updatedCount}`);
+    }
+    setMessage(importMessage, `Import completed: ${messageParts.join(" and ") || "no changes"}.`, false);
   }
 
   leadImportFile.value = "";
@@ -694,10 +823,6 @@ function setupAdminPanel() {
 
   void hydrateAllocationPanel();
 
-  if (addAllocationRowBtn) {
-    addAllocationRowBtn.addEventListener("click", appendAllocationRow);
-  }
-
   if (!saveAllocationBtn) {
     return;
   }
@@ -719,6 +844,14 @@ function setupAdminPanel() {
   importLeadsBtn.onclick = () => {
     handleLeadImport();
   };
+
+  if (deleteAllLeadsBtn) {
+    deleteAllLeadsBtn.addEventListener("click", deleteWholeLeadDataset);
+  }
+
+  if (deleteLostLeadsBtn) {
+    deleteLostLeadsBtn.addEventListener("click", deleteLostLeads);
+  }
 }
 
 function isPostWorkshopLead(lead) {
@@ -726,19 +859,11 @@ function isPostWorkshopLead(lead) {
 }
 
 function isLostLead(lead) {
-  if (lead.wsStatus === "Not Interested") {
-    return true;
-  }
-
-  if (isPostWorkshopLead(lead) && lead.postStatusUpdated && lead.courseStatus === "Not Interested") {
-    return true;
-  }
-
-  return false;
+  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
 }
 
 function getPreWorkshopLeads(allLeads) {
-  return allLeads.filter((lead) => !isPostWorkshopLead(lead) && !isLostLead(lead));
+  return allLeads.filter((lead) => !isLostLead(lead));
 }
 
 function getUniqueValues(leads, key) {
@@ -982,40 +1107,49 @@ function renderFilters(leads) {
 
   document.getElementById("timelineSelect").onchange = (event) => {
     filter.timeline = event.target.value;
+    persistFilterState();
     document.getElementById("startDateWrap").classList.toggle("hidden", filter.timeline !== "custom");
     document.getElementById("endDateWrap").classList.toggle("hidden", filter.timeline !== "custom");
   };
 
   document.getElementById("startDateInput").onchange = (event) => {
     filter.startDate = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("endDateInput").onchange = (event) => {
     filter.endDate = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("searchLeadInput").oninput = (event) => {
     filter.search = event.target.value.trim();
+    persistFilterState();
   };
 
   document.getElementById("workshopSelect").onchange = (event) => {
     filter.workshop = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("dialedSelect").onchange = (event) => {
     filter.dialed = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("callStatusSelect").onchange = (event) => {
     filter.callStatus = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("wsStatusSelect").onchange = (event) => {
     filter.wsStatus = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("whatsappInviteSelect").onchange = (event) => {
     filter.whatsappInvite = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("applyFilters").onclick = () => {
@@ -1024,6 +1158,7 @@ function renderFilters(leads) {
 
   document.getElementById("resetFilters").onclick = () => {
     filter = { ...DEFAULT_FILTER };
+    persistFilterState();
     renderAll();
   };
 }
@@ -1031,7 +1166,7 @@ function renderFilters(leads) {
 function renderActivityStatusPanel(lead) {
   return `
     <div class="activity-panel">
-      <span class="status-summary">${lead.dialed}, ${lead.callStatus}, ${lead.wsStatus}, WA Invite: ${lead.whatsappInvite}</span>
+      <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
       <button class="btn-update-status" data-lead-id="${lead.id}">Update</button>
     </div>
   `;
@@ -1078,12 +1213,47 @@ function renderLeadTable(leads) {
   html += `</tbody></table></div>`;
   preLeadTableSection.innerHTML = html;
 
+  document.querySelectorAll(".btn-view-activity").forEach((button) => {
+    button.onclick = () => {
+      const leadId = button.getAttribute("data-lead-id");
+      openActivityDetailsModal(leadId);
+    };
+  });
+
   document.querySelectorAll(".btn-update-status").forEach((button) => {
     button.onclick = () => {
       const leadId = button.getAttribute("data-lead-id");
       openActivityStatusModal(leadId);
     };
   });
+}
+
+function setActivityModalMode(mode) {
+  modalMode = mode;
+  const title = document.getElementById("activityModalTitle");
+  const saveButton = document.getElementById("saveActivityBtn");
+
+  if (title) {
+    title.textContent = mode === "view" ? "Activity Details" : "Update Activity Status";
+  }
+
+  if (saveButton) {
+    saveButton.classList.toggle("hidden", mode === "view");
+  }
+
+  activityFields.forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (field) {
+      field.disabled = mode === "view";
+    }
+  });
+}
+
+function populateActivityModal(lead) {
+  document.getElementById("modalDialed").value = lead.dialed;
+  document.getElementById("modalCallStatus").value = lead.callStatus;
+  document.getElementById("modalWsStatus").value = lead.wsStatus;
+  document.getElementById("modalWhatsappInvite").value = lead.whatsappInvite;
 }
 
 function updateLeadActivity(leadId, updates) {
@@ -1100,10 +1270,23 @@ function updateLeadActivity(leadId, updates) {
     }
   }
 
+  const workshopHistory = Array.isArray(allLeads[index].workshopActivityHistory)
+    ? allLeads[index].workshopActivityHistory
+    : [];
+  const nextWorkshopHistory = [
+    ...workshopHistory,
+    {
+      at: new Date().toISOString(),
+      source: "Workshop Calling",
+      updates
+    }
+  ];
+
   allLeads[index] = {
     ...allLeads[index],
     ...updates,
-    preActivityUpdates: (Number(allLeads[index].preActivityUpdates) || 0) + 1
+    workshopActivityHistory: nextWorkshopHistory,
+    preActivityUpdates: nextWorkshopHistory.length
   };
 
   saveAllLeads(allLeads);
@@ -1125,16 +1308,36 @@ function openActivityStatusModal(leadId) {
     }
   }
 
-  document.getElementById("modalDialed").value = lead.dialed;
-  document.getElementById("modalCallStatus").value = lead.callStatus;
-  document.getElementById("modalWsStatus").value = lead.wsStatus;
-  document.getElementById("modalWhatsappInvite").value = lead.whatsappInvite;
+  setActivityModalMode("edit");
+  populateActivityModal(lead);
+  document.getElementById("activityStatusModal").classList.remove("hidden");
+}
+
+function openActivityDetailsModal(leadId) {
+  modalLeadId = leadId;
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+
+  if (!lead) {
+    return;
+  }
+
+  if (isCounselorSession()) {
+    const owner = String(lead.counselor || "").trim().toLowerCase();
+    if (owner !== getCounselorIdentity()) {
+      return;
+    }
+  }
+
+  setActivityModalMode("view");
+  populateActivityModal(lead);
   document.getElementById("activityStatusModal").classList.remove("hidden");
 }
 
 function closeActivityStatusModal() {
   document.getElementById("activityStatusModal").classList.add("hidden");
   modalLeadId = null;
+  setActivityModalMode("edit");
 }
 
 function initPreWorkshopPage() {
@@ -1175,6 +1378,7 @@ function renderAll() {
 
   const scopedLeads = getScopedLeads(allLeads);
   const preWorkshopLeads = getPreWorkshopLeads(scopedLeads);
+  normalizeFilterState(preWorkshopLeads);
   const filteredLeads = filterLeads(preWorkshopLeads);
 
   renderKpis(filteredLeads);

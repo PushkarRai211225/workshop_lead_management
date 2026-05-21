@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pre-Workshop Lead Management</title>
+  <title>Workshop Calling Lead Management</title>
   <link rel="icon" type="image/png" href="Logos/DV-Logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,8 +18,8 @@
       </div>
       <nav class="sidebar-nav">
         <a href="dashboard.html" class="sidebar-link">Dashboard</a>
-        <a href="pre-workshop.html" class="sidebar-link">Pre-Workshop</a>
-        <a href="post-workshop.html" class="sidebar-link">Post-Workshop</a>
+        <a href="pre-workshop.html" class="sidebar-link">Workshop Calling</a>
+        <a href="post-workshop.html" class="sidebar-link">Admission Calling</a>
         <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
         <a href="monitoring.html" class="sidebar-link">Monitoring</a>
       </nav>
@@ -28,8 +28,8 @@
     <div class="main-content">
       <header class="topbar">
         <div class="topbar-title">
-          <h1>Pre-Workshop Lead Management</h1>
-          <p>Manage and analyze leads before the workshop.</p>
+          <h1>Workshop Calling Lead Management</h1>
+          <p>Manage and analyze leads during the workshop calling stage.</p>
         </div>
         <div class="topbar-profile">
           <span class="role-tag" data-role-tag></span>
@@ -69,10 +69,21 @@
           </div>
           <div id="allocationRows" class="allocation-rows"></div>
           <div class="allocation-actions">
-            <button id="addAllocationRowBtn" type="button" class="btn-ghost">Add Counselor Row</button>
             <button id="saveAllocationBtn" type="button" class="btn-ghost">Save Allocation</button>
           </div>
           <p id="allocationMessage" class="message" aria-live="polite"></p>
+        </div>
+
+        <div class="allocation-block">
+          <div class="card-head">
+            <h4>Lead Data Cleanup</h4>
+            <p>Use these actions to remove stored lead data when needed.</p>
+          </div>
+          <div class="allocation-actions cleanup-actions">
+            <button id="deleteAllLeadsBtn" type="button" class="btn-ghost">Delete Whole Lead Dataset</button>
+            <button id="deleteLostLeadsBtn" type="button" class="btn-ghost">Delete Lost Leads</button>
+          </div>
+          <p id="cleanupMessage" class="message" aria-live="polite"></p>
         </div>
       </section>
 
@@ -83,11 +94,12 @@
       <!-- Activity Status Modal -->
       <div id="activityStatusModal" class="modal hidden">
         <div class="modal-content card">
-          <h3>Update Activity Status</h3>
+          <h3 id="activityModalTitle">Update Activity Status</h3>
           <form id="activityStatusForm">
             <div class="modal-row">
               <label>Dialed:</label>
               <select id="modalDialed">
+                <option value="">Select</option>
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
               </select>
@@ -95,6 +107,7 @@
             <div class="modal-row">
               <label>Call Status:</label>
               <select id="modalCallStatus">
+                <option value="">Select</option>
                 <option value="Connected">Connected</option>
                 <option value="CBL">CBL</option>
                 <option value="DNP">DNP</option>
@@ -104,6 +117,7 @@
             <div class="modal-row">
               <label>Workshop Status:</label>
               <select id="modalWsStatus">
+                <option value="">Select</option>
                 <option value="Interested">Interested</option>
                 <option value="Not Interested">Not Interested</option>
               </select>
@@ -111,12 +125,13 @@
             <div class="modal-row">
               <label>WhatsApp Invitation Sent:</label>
               <select id="modalWhatsappInvite">
+                <option value="">Select</option>
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
               </select>
             </div>
             <div class="modal-actions">
-              <button type="submit" class="btn-primary">Save</button>
+              <button type="submit" id="saveActivityBtn" class="btn-primary">Save</button>
               <button type="button" id="closeModalBtn" class="btn-ghost">Cancel</button>
             </div>
           </form>

@@ -502,6 +502,25 @@ textarea:focus {
   padding: var(--space-3);
 }
 
+.filter-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.filter-section + .filter-section {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.filter-section-title {
+  color: var(--heading);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .filter-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -519,12 +538,23 @@ textarea:focus {
   display: grid;
   gap: 6px;
   min-width: 0;
+  justify-items: center;
+  text-align: center;
 }
 
 .filter-item select,
 .filter-item input[type="date"],
 .filter-item button {
   width: 100%;
+}
+
+.filter-item select,
+.filter-item input {
+  text-align: center;
+}
+
+.filter-item select {
+  text-align-last: center;
 }
 
 .filter-item-cta {
@@ -548,14 +578,17 @@ table {
   width: 100%;
   min-width: 760px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th,
 td {
-  padding: 11px 12px;
+  padding: 14px 12px;
   border-bottom: 1px solid #ebeff4;
-  text-align: left;
+  text-align: center;
   font-size: 0.9rem;
+  vertical-align: middle;
+  word-break: break-word;
 }
 
 th {
@@ -573,8 +606,8 @@ tbody tr:hover {
 .activity-panel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  justify-content: center;
+  gap: 10px;
 }
 
 .status-summary {
@@ -680,6 +713,10 @@ tbody tr:hover {
 .allocation-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.cleanup-actions {
+  justify-content: flex-start;
 }
 
 .management-grid {

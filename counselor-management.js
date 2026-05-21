@@ -188,8 +188,8 @@ async function removeCounselor(counselorId) {
 
 function permissionText(permissions) {
   const names = [];
-  if (permissions.preWorkshop) names.push("Pre-Workshop");
-  if (permissions.postWorkshop) names.push("Post-Workshop");
+  if (permissions.preWorkshop) names.push("Workshop Calling");
+  if (permissions.postWorkshop) names.push("Admission Calling");
   if (permissions.lostLeads) names.push("Lost Leads");
   if (permissions.monitoring) names.push("Monitoring");
   return names.length ? names.join(", ") : "No access";

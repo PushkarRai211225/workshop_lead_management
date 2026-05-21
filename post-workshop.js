@@ -1,4 +1,4 @@
-import { bootstrapLocalState, syncStateFromLocal } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
 const SESSION_KEY = "dvWorkshopSession";
@@ -8,18 +8,10 @@ await bootstrapLocalState();
 
 const postKpiSection = document.getElementById("postKpiSection");
 const postFilterBar = document.getElementById("postFilterBar");
+const postActivityMessage = document.getElementById("postActivityMessage");
 const postLeadTableSection = document.getElementById("postLeadTableSection");
 
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
-
-let filter = {
-  search: "",
-  workshop: "All",
-  postDialed: "All",
-  coursePitched: "All",
-  admissionStatus: "All",
-  courseStatus: "All"
-};
 
 const DEFAULT_FILTER = {
   search: "",
@@ -27,10 +19,42 @@ const DEFAULT_FILTER = {
   postDialed: "All",
   coursePitched: "All",
   admissionStatus: "All",
-  courseStatus: "All"
+  courseStatus: "All",
+  workshopCallingDialed: "All",
+  workshopCallingCallStatus: "All",
+  workshopCallingWsStatus: "All",
+  workshopCallingWhatsappInvite: "All"
+};
+
+const FILTER_STORAGE_KEY = "dvWorkshopAdmissionCallingFilters";
+const persistedFilter = loadPersistedValue(FILTER_STORAGE_KEY, {});
+
+if (persistedFilter.workshopCalling && !persistedFilter.workshopCallingWsStatus) {
+  persistedFilter.workshopCallingWsStatus = persistedFilter.workshopCalling;
+}
+
+let filter = {
+  ...DEFAULT_FILTER,
+  ...persistedFilter
 };
 
 let modalLeadId = null;
+let modalMode = "edit";
+
+const activityFields = ["modalPostDialed", "modalCoursePitched", "modalCourseStatus", "modalAdmissionStatus"];
+
+function setMessage(text, isError = true) {
+  if (!postActivityMessage) {
+    return;
+  }
+
+  postActivityMessage.textContent = text;
+  postActivityMessage.style.color = isError ? "#b42318" : "#0f766e";
+}
+
+function persistFilterState() {
+  savePersistedValue(FILTER_STORAGE_KEY, filter);
+}
 
 function isCounselorSession() {
   return session?.role === "counselor";
@@ -82,19 +106,22 @@ function getScopedLeads(allLeads) {
 
 function normalizeLeadFields(leads) {
   leads.forEach((lead) => {
-    lead.dialed = lead.dialed || "No";
-    lead.callStatus = lead.callStatus || "CNC";
-    // Missing wsStatus should not imply the lead is lost.
-    lead.wsStatus = lead.wsStatus || "Interested";
-    lead.whatsappInvite = lead.whatsappInvite || "No";
+    lead.dialed = lead.dialed || "";
+    lead.callStatus = lead.callStatus || "";
+    lead.wsStatus = lead.wsStatus || "";
+    lead.whatsappInvite = lead.whatsappInvite || "";
 
-    lead.postDialed = lead.postDialed || "No";
-    lead.coursePitched = lead.coursePitched || "No";
-    lead.courseStatus = lead.courseStatus || "Interested";
-    lead.admissionStatus = lead.admissionStatus || "In-Converstion";
+    lead.postDialed = lead.postDialed || "";
+    lead.coursePitched = lead.coursePitched || "";
+    lead.courseStatus = lead.courseStatus || "";
+    lead.admissionStatus = lead.admissionStatus || "";
     lead.postStatusUpdated = typeof lead.postStatusUpdated === "boolean" ? lead.postStatusUpdated : false;
-    lead.preActivityUpdates = Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0;
-    lead.postActivityUpdates = Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0;
+    lead.workshopActivityHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
+    lead.admissionActivityHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
+    lead.preActivityUpdates = lead.workshopActivityHistory.length
+      || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
+    lead.postActivityUpdates = lead.admissionActivityHistory.length
+      || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
   });
 }
 
@@ -119,24 +146,12 @@ function saveAllLeads(leads) {
   void syncStateFromLocal();
 }
 
-function isPostWorkshopLead(lead) {
-  return lead.wsStatus === "Interested" && lead.whatsappInvite === "Yes";
-}
-
 function isLostLead(lead) {
-  if (lead.wsStatus === "Not Interested") {
-    return true;
-  }
-
-  if (isPostWorkshopLead(lead) && lead.postStatusUpdated && lead.courseStatus === "Not Interested") {
-    return true;
-  }
-
-  return false;
+  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
 }
 
-function getPostWorkshopLeads(allLeads) {
-  return allLeads.filter((lead) => isPostWorkshopLead(lead) && !isLostLead(lead));
+function getAdmissionCallingLeads(allLeads) {
+  return allLeads.filter((lead) => !isLostLead(lead));
 }
 
 function getUniqueValues(leads, key) {
@@ -176,62 +191,107 @@ function renderKpis(leads) {
 
 function renderFilters(leads) {
   const workshops = getUniqueValues(leads, "workshop");
+  const workshopCallingDialedOptions = getUniqueValues(leads, "dialed");
+  const workshopCallingCallStatusOptions = getUniqueValues(leads, "callStatus");
+  const workshopCallingWsStatusOptions = getUniqueValues(leads, "wsStatus");
+  const workshopCallingWhatsappInviteOptions = getUniqueValues(leads, "whatsappInvite");
   const postDialedOptions = getUniqueValues(leads, "postDialed");
   const coursePitchedOptions = getUniqueValues(leads, "coursePitched");
   const admissionOptions = getUniqueValues(leads, "admissionStatus");
 
   postFilterBar.innerHTML = `
-    <div class="filter-row">
-      <div class="filter-item">
-        <label for="postSearchLeadInput">Search Lead</label>
-        <input id="postSearchLeadInput" type="text" placeholder="Name, email, phone, workshop, counselor" />
+    <div class="filter-section">
+      <div class="filter-section-title">Workshop Calling</div>
+      <div class="filter-row">
+        <div class="filter-item">
+          <label for="postWorkshopCallingDialedSelect">Dialed</label>
+          <select id="postWorkshopCallingDialedSelect">
+            <option value="All">All</option>
+            ${workshopCallingDialedOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postWorkshopCallingCallStatusSelect">Call Status</label>
+          <select id="postWorkshopCallingCallStatusSelect">
+            <option value="All">All</option>
+            ${workshopCallingCallStatusOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postWorkshopCallingWsStatusSelect">Workshop Status</label>
+          <select id="postWorkshopCallingWsStatusSelect">
+            <option value="All">All</option>
+            ${workshopCallingWsStatusOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postWorkshopCallingWhatsappInviteSelect">WhatsApp Invite</label>
+          <select id="postWorkshopCallingWhatsappInviteSelect">
+            <option value="All">All</option>
+            ${workshopCallingWhatsappInviteOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
       </div>
-      <div class="filter-item">
-        <label for="postWorkshopSelect">Workshop Name</label>
-        <select id="postWorkshopSelect">
-          <option value="All">All</option>
-          ${workshops.map((value) => `<option value="${value}">${value}</option>`).join("")}
-        </select>
-      </div>
-      <div class="filter-item">
-        <label for="postDialedSelect">Dialed</label>
-        <select id="postDialedSelect">
-          <option value="All">All</option>
-          ${postDialedOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
-        </select>
-      </div>
-      <div class="filter-item">
-        <label for="postCoursePitchedSelect">Course Pitched</label>
-        <select id="postCoursePitchedSelect">
-          <option value="All">All</option>
-          ${coursePitchedOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
-        </select>
-      </div>
-      <div class="filter-item">
-        <label for="postCourseStatusSelect">Course Status</label>
-        <select id="postCourseStatusSelect">
-          <option value="All">All</option>
-          <option value="Interested">Interested</option>
-          <option value="Not Interested">Not Interested</option>
-        </select>
-      </div>
-      <div class="filter-item">
-        <label for="postAdmissionStatusSelect">Admission</label>
-        <select id="postAdmissionStatusSelect">
-          <option value="All">All</option>
-          ${admissionOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
-        </select>
-      </div>
-      <div class="filter-item filter-item-cta">
-        <label>&nbsp;</label>
-        <div class="filter-actions">
-          <button id="postApplyFilters" class="btn-ghost" type="button">Apply</button>
-          <button id="postResetFilters" class="btn-ghost" type="button">Reset</button>
+    </div>
+
+    <div class="filter-section">
+      <div class="filter-section-title">Admission Calling</div>
+      <div class="filter-row">
+        <div class="filter-item">
+          <label for="postSearchLeadInput">Search Lead</label>
+          <input id="postSearchLeadInput" type="text" placeholder="Name, email, phone, workshop, counselor" />
+        </div>
+        <div class="filter-item">
+          <label for="postWorkshopSelect">Workshop Name</label>
+          <select id="postWorkshopSelect">
+            <option value="All">All</option>
+            ${workshops.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postDialedSelect">Dialed</label>
+          <select id="postDialedSelect">
+            <option value="All">All</option>
+            ${postDialedOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postCoursePitchedSelect">Course Pitched</label>
+          <select id="postCoursePitchedSelect">
+            <option value="All">All</option>
+            ${coursePitchedOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postCourseStatusSelect">Course Status</label>
+          <select id="postCourseStatusSelect">
+            <option value="All">All</option>
+            <option value="Interested">Interested</option>
+            <option value="Not Interested">Not Interested</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postAdmissionStatusSelect">Admission</label>
+          <select id="postAdmissionStatusSelect">
+            <option value="All">All</option>
+            ${admissionOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
+          </select>
+        </div>
+        <div class="filter-item filter-item-cta">
+          <label>&nbsp;</label>
+          <div class="filter-actions">
+            <button id="postApplyFilters" class="btn-ghost" type="button">Apply</button>
+            <button id="postResetFilters" class="btn-ghost" type="button">Reset</button>
+          </div>
         </div>
       </div>
     </div>
   `;
 
+  document.getElementById("postWorkshopCallingDialedSelect").value = filter.workshopCallingDialed;
+  document.getElementById("postWorkshopCallingCallStatusSelect").value = filter.workshopCallingCallStatus;
+  document.getElementById("postWorkshopCallingWsStatusSelect").value = filter.workshopCallingWsStatus;
+  document.getElementById("postWorkshopCallingWhatsappInviteSelect").value = filter.workshopCallingWhatsappInvite;
   document.getElementById("postSearchLeadInput").value = filter.search;
   document.getElementById("postWorkshopSelect").value = filter.workshop;
   document.getElementById("postDialedSelect").value = filter.postDialed;
@@ -239,28 +299,54 @@ function renderFilters(leads) {
   document.getElementById("postCourseStatusSelect").value = filter.courseStatus;
   document.getElementById("postAdmissionStatusSelect").value = filter.admissionStatus;
 
+  document.getElementById("postWorkshopCallingDialedSelect").onchange = (event) => {
+    filter.workshopCallingDialed = event.target.value;
+    persistFilterState();
+  };
+
+  document.getElementById("postWorkshopCallingCallStatusSelect").onchange = (event) => {
+    filter.workshopCallingCallStatus = event.target.value;
+    persistFilterState();
+  };
+
+  document.getElementById("postWorkshopCallingWsStatusSelect").onchange = (event) => {
+    filter.workshopCallingWsStatus = event.target.value;
+    persistFilterState();
+  };
+
+  document.getElementById("postWorkshopCallingWhatsappInviteSelect").onchange = (event) => {
+    filter.workshopCallingWhatsappInvite = event.target.value;
+    persistFilterState();
+  };
+
   document.getElementById("postSearchLeadInput").oninput = (event) => {
     filter.search = event.target.value.trim();
+    persistFilterState();
   };
 
   document.getElementById("postWorkshopSelect").onchange = (event) => {
     filter.workshop = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("postDialedSelect").onchange = (event) => {
     filter.postDialed = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("postCoursePitchedSelect").onchange = (event) => {
     filter.coursePitched = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("postCourseStatusSelect").onchange = (event) => {
     filter.courseStatus = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("postAdmissionStatusSelect").onchange = (event) => {
     filter.admissionStatus = event.target.value;
+    persistFilterState();
   };
 
   document.getElementById("postApplyFilters").onclick = () => {
@@ -269,6 +355,7 @@ function renderFilters(leads) {
 
   document.getElementById("postResetFilters").onclick = () => {
     filter = { ...DEFAULT_FILTER };
+    persistFilterState();
     renderAll();
   };
 }
@@ -297,6 +384,22 @@ function filterLeads(leads) {
     filtered = filtered.filter((lead) => lead.workshop === filter.workshop);
   }
 
+  if (filter.workshopCallingDialed !== "All") {
+    filtered = filtered.filter((lead) => lead.dialed === filter.workshopCallingDialed);
+  }
+
+  if (filter.workshopCallingCallStatus !== "All") {
+    filtered = filtered.filter((lead) => lead.callStatus === filter.workshopCallingCallStatus);
+  }
+
+  if (filter.workshopCallingWsStatus !== "All") {
+    filtered = filtered.filter((lead) => lead.wsStatus === filter.workshopCallingWsStatus);
+  }
+
+  if (filter.workshopCallingWhatsappInvite !== "All") {
+    filtered = filtered.filter((lead) => lead.whatsappInvite === filter.workshopCallingWhatsappInvite);
+  }
+
   if (filter.postDialed !== "All") {
     filtered = filtered.filter((lead) => lead.postDialed === filter.postDialed);
   }
@@ -319,7 +422,7 @@ function filterLeads(leads) {
 function renderActivityPanel(lead) {
   return `
     <div class="activity-panel">
-      <span class="status-summary">Dialed: ${lead.postDialed}, Pitched: ${lead.coursePitched}, Course: ${lead.courseStatus}, Admission: ${lead.admissionStatus}</span>
+      <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
       <button class="btn-update-status" data-lead-id="${lead.id}">Update</button>
     </div>
   `;
@@ -336,14 +439,14 @@ function renderLeadTable(leads) {
             <th>Phone Number</th>
             <th>Email</th>
             <th>Workshop Name</th>
-            <th>Post-Workshop Activity</th>
+            <th>Admission Calling Activity</th>
           </tr>
         </thead>
         <tbody>
   `;
 
   if (!leads.length) {
-    html += `<tr><td colspan="6">No post-workshop leads available for current filters.</td></tr>`;
+    html += `<tr><td colspan="6">No admission calling leads available for current filters.</td></tr>`;
   } else {
     html += leads
       .map(
@@ -364,6 +467,13 @@ function renderLeadTable(leads) {
   html += `</tbody></table></div>`;
   postLeadTableSection.innerHTML = html;
 
+  document.querySelectorAll(".btn-view-activity").forEach((button) => {
+    button.onclick = () => {
+      const leadId = button.getAttribute("data-lead-id");
+      openPostActivityDetailsModal(leadId);
+    };
+  });
+
   document.querySelectorAll(".btn-update-status").forEach((button) => {
     button.onclick = () => {
       const leadId = button.getAttribute("data-lead-id");
@@ -372,27 +482,84 @@ function renderLeadTable(leads) {
   });
 }
 
+function setPostActivityModalMode(mode) {
+  modalMode = mode;
+  const title = document.getElementById("postActivityModalTitle");
+  const saveButton = document.getElementById("savePostActivityBtn");
+
+  if (title) {
+    title.textContent = mode === "view" ? "Activity Details" : "Update Admission Calling Activity";
+  }
+
+  if (saveButton) {
+    saveButton.classList.toggle("hidden", mode === "view");
+  }
+
+  activityFields.forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (field) {
+      field.disabled = mode === "view";
+    }
+  });
+}
+
+function populatePostActivityModal(lead) {
+  document.getElementById("modalPostDialed").value = lead.postDialed;
+  document.getElementById("modalCoursePitched").value = lead.coursePitched;
+  document.getElementById("modalCourseStatus").value = lead.courseStatus;
+  document.getElementById("modalAdmissionStatus").value = lead.admissionStatus;
+}
+
 function updatePostActivity(leadId, updates) {
   const allLeads = getAllLeads();
   const index = allLeads.findIndex((lead) => String(lead.id) === String(leadId));
   if (index === -1) {
-    return;
+    return false;
   }
 
   if (isCounselorSession()) {
     const owner = String(allLeads[index].counselor || "").trim().toLowerCase();
     if (owner !== getCounselorIdentity()) {
-      return;
+      return false;
     }
   }
+
+  const workshopActivityCount = Array.isArray(allLeads[index].workshopActivityHistory)
+    ? allLeads[index].workshopActivityHistory.length
+    : Number(allLeads[index].preActivityUpdates) || 0;
+  if (!workshopActivityCount) {
+    setMessage("Complete Workshop Calling first before updating Admission Calling.", true);
+    return false;
+  }
+
+  const admissionHistory = Array.isArray(allLeads[index].admissionActivityHistory)
+    ? allLeads[index].admissionActivityHistory
+    : [];
+  const nextAdmissionHistory = [
+    ...admissionHistory,
+    {
+      at: new Date().toISOString(),
+      source: "Admission Calling",
+      updates
+    }
+  ];
 
   allLeads[index] = {
     ...allLeads[index],
     ...updates,
-    postActivityUpdates: (Number(allLeads[index].postActivityUpdates) || 0) + 1
+    admissionActivityHistory: nextAdmissionHistory,
+    postActivityUpdates: nextAdmissionHistory.length,
+    postStatusUpdated: true
   };
 
   saveAllLeads(allLeads);
+  setMessage(
+    updates.courseStatus === "Not Interested"
+      ? "Lead moved to Lost Leads."
+      : "Admission Calling activity saved successfully.",
+    false
+  );
+  return true;
 }
 
 function openPostActivityModal(leadId) {
@@ -410,16 +577,35 @@ function openPostActivityModal(leadId) {
     }
   }
 
-  document.getElementById("modalPostDialed").value = lead.postDialed;
-  document.getElementById("modalCoursePitched").value = lead.coursePitched;
-  document.getElementById("modalCourseStatus").value = lead.courseStatus;
-  document.getElementById("modalAdmissionStatus").value = lead.admissionStatus;
+  setPostActivityModalMode("edit");
+  populatePostActivityModal(lead);
+  document.getElementById("postActivityModal").classList.remove("hidden");
+}
+
+function openPostActivityDetailsModal(leadId) {
+  modalLeadId = leadId;
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+  if (!lead) {
+    return;
+  }
+
+  if (isCounselorSession()) {
+    const owner = String(lead.counselor || "").trim().toLowerCase();
+    if (owner !== getCounselorIdentity()) {
+      return;
+    }
+  }
+
+  setPostActivityModalMode("view");
+  populatePostActivityModal(lead);
   document.getElementById("postActivityModal").classList.remove("hidden");
 }
 
 function closePostModal() {
   document.getElementById("postActivityModal").classList.add("hidden");
   modalLeadId = null;
+  setPostActivityModalMode("edit");
 }
 
 function initPostWorkshopPage() {
@@ -435,13 +621,17 @@ function initPostWorkshopPage() {
       return;
     }
 
-    updatePostActivity(modalLeadId, {
+    const saved = updatePostActivity(modalLeadId, {
       postDialed: document.getElementById("modalPostDialed").value,
       coursePitched: document.getElementById("modalCoursePitched").value,
       courseStatus: document.getElementById("modalCourseStatus").value,
       admissionStatus: document.getElementById("modalAdmissionStatus").value,
       postStatusUpdated: true
     });
+
+    if (!saved) {
+      return;
+    }
 
     closePostModal();
     renderAll();
@@ -460,11 +650,11 @@ function renderAll() {
   saveAllLeads(allLeads);
 
   const scopedLeads = getScopedLeads(allLeads);
-  const postLeads = getPostWorkshopLeads(scopedLeads);
-  const filteredLeads = filterLeads(postLeads);
+  const admissionLeads = getAdmissionCallingLeads(scopedLeads);
+  const filteredLeads = filterLeads(admissionLeads);
 
   renderKpis(filteredLeads);
-  renderFilters(postLeads);
+  renderFilters(admissionLeads);
   renderLeadTable(filteredLeads);
 }
 

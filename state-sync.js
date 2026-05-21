@@ -25,6 +25,27 @@ function safeParseArray(value) {
   }
 }
 
+function safeParseValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+export function loadPersistedValue(key, fallback) {
+  const parsed = safeParseValue(localStorage.getItem(key));
+  return parsed === null ? structuredClone(fallback) : parsed;
+}
+
+export function savePersistedValue(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
 export async function bootstrapLocalState() {
   const localLeads = safeParseArray(localStorage.getItem(LEADS_KEY));
   const localCounselors = safeParseArray(localStorage.getItem(COUNSELORS_KEY));

@@ -1,4 +1,4 @@
-import { bootstrapLocalState } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, savePersistedValue } from "./state-sync.js";
 
 const SESSION_KEY = "dvWorkshopSession";
 const LEADS_KEY = "dvWorkshopLeads";
@@ -31,6 +31,31 @@ const isAdmin = session.role === "admin";
 interestedPanelNote.textContent = isAdmin
   ? "Live view of interested leads by workshop and potential follow-ups."
   : "Read-only insight for counselors to prioritize warm prospects.";
+
+const TIMELINE_STORAGE_KEY = "dvWorkshopDashboardTimeline";
+const DEFAULT_TIMELINE_STATE = {
+  preset: "weekly",
+  startDate: "",
+  endDate: ""
+};
+
+const persistedTimelineState = {
+  ...DEFAULT_TIMELINE_STATE,
+  ...loadPersistedValue(TIMELINE_STORAGE_KEY, {})
+};
+
+timelinePreset.value = persistedTimelineState.preset || DEFAULT_TIMELINE_STATE.preset;
+startDateInput.value = persistedTimelineState.startDate || "";
+endDateInput.value = persistedTimelineState.endDate || "";
+customRangeFields.classList.toggle("hidden", timelinePreset.value !== "custom");
+
+function persistTimelineState() {
+  savePersistedValue(TIMELINE_STORAGE_KEY, {
+    preset: timelinePreset.value,
+    startDate: startDateInput.value,
+    endDate: endDateInput.value
+  });
+}
 
 function getLeads() {
   const existing = localStorage.getItem(LEADS_KEY);
@@ -354,9 +379,19 @@ hydrate(leads);
 timelinePreset.addEventListener("change", () => {
   const showCustom = timelinePreset.value === "custom";
   customRangeFields.classList.toggle("hidden", !showCustom);
+  persistTimelineState();
   hydrate(getLeads());
 });
 
+startDateInput.addEventListener("change", () => {
+  persistTimelineState();
+});
+
+endDateInput.addEventListener("change", () => {
+  persistTimelineState();
+});
+
 applyCustomRangeBtn.addEventListener("click", () => {
+  persistTimelineState();
   hydrate(getLeads());
 });

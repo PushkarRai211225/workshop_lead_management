@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Post-Workshop Lead Management</title>
+  <title>Admission Calling Lead Management</title>
   <link rel="icon" type="image/png" href="Logos/DV-Logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,8 +18,8 @@
       </div>
       <nav class="sidebar-nav">
         <a href="dashboard.html" class="sidebar-link">Dashboard</a>
-        <a href="pre-workshop.html" class="sidebar-link">Pre-Workshop</a>
-        <a href="post-workshop.html" class="sidebar-link">Post-Workshop</a>
+        <a href="pre-workshop.html" class="sidebar-link">Workshop Calling</a>
+        <a href="post-workshop.html" class="sidebar-link">Admission Calling</a>
         <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
         <a href="monitoring.html" class="sidebar-link">Monitoring</a>
       </nav>
@@ -28,7 +28,7 @@
     <div class="main-content">
       <header class="topbar">
         <div class="topbar-title">
-          <h1>Post-Workshop Lead Management</h1>
+          <h1>Admission Calling Lead Management</h1>
           <p>Track follow-ups and course conversion after workshop engagement.</p>
         </div>
         <div class="topbar-profile">
@@ -39,15 +39,17 @@
 
       <section class="kpi-grid" id="postKpiSection"></section>
       <section class="card filter-bar" id="postFilterBar"></section>
+      <p id="postActivityMessage" class="message" aria-live="polite"></p>
       <section class="card table-card" id="postLeadTableSection"></section>
 
       <div id="postActivityModal" class="modal hidden">
         <div class="modal-content card">
-          <h3>Update Post-Workshop Activity</h3>
+          <h3 id="postActivityModalTitle">Update Admission Calling Activity</h3>
           <form id="postActivityForm">
             <div class="modal-row">
               <label for="modalPostDialed">Dialed</label>
               <select id="modalPostDialed">
+                <option value="">Select</option>
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
               </select>
@@ -55,6 +57,7 @@
             <div class="modal-row">
               <label for="modalCoursePitched">Course Pitched</label>
               <select id="modalCoursePitched">
+                <option value="">Select</option>
                 <option value="No">No</option>
                 <option value="APIDA">APIDA</option>
                 <option value="APIDS">APIDS</option>
@@ -65,6 +68,7 @@
             <div class="modal-row">
               <label for="modalCourseStatus">Course Status</label>
               <select id="modalCourseStatus">
+                <option value="">Select</option>
                 <option value="Interested">Interested</option>
                 <option value="Not Interested">Not Interested</option>
               </select>
@@ -72,13 +76,14 @@
             <div class="modal-row">
               <label for="modalAdmissionStatus">Admission</label>
               <select id="modalAdmissionStatus">
+                <option value="">Select</option>
                 <option value="In-Converstion">In-Converstion</option>
                 <option value="Enrolled">Enrolled</option>
                 <option value="Won">Won</option>
               </select>
             </div>
             <div class="modal-actions">
-              <button type="submit" class="btn-primary">Save</button>
+              <button type="submit" id="savePostActivityBtn" class="btn-primary">Save</button>
               <button type="button" id="closePostModalBtn" class="btn-ghost">Cancel</button>
             </div>
           </form>

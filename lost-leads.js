@@ -1,4 +1,4 @@
-import { bootstrapLocalState } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, savePersistedValue } from "./state-sync.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
 const SESSION_KEY = "dvWorkshopSession";
@@ -13,8 +13,13 @@ const applyLostSearch = document.getElementById("applyLostSearch");
 const resetLostSearch = document.getElementById("resetLostSearch");
 
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+const SEARCH_STORAGE_KEY = "dvWorkshopLostLeadSearch";
 
-let searchQuery = "";
+let searchQuery = String(loadPersistedValue(SEARCH_STORAGE_KEY, "") || "");
+
+if (lostSearchInput) {
+  lostSearchInput.value = searchQuery;
+}
 
 function isCounselorSession() {
   return session?.role === "counselor";
@@ -49,6 +54,10 @@ function getCounselorIdentity() {
   }
 }
 
+function persistSearchQuery() {
+  savePersistedValue(SEARCH_STORAGE_KEY, searchQuery);
+}
+
 function getScopedLeads(allLeads) {
   if (!isCounselorSession()) {
     return allLeads;
@@ -68,21 +77,26 @@ function normalizeLeadFields(leads) {
   leads.forEach((lead) => {
     lead.name = lead.name || "";
     lead.email = (lead.email || "").toLowerCase();
-    lead.workshop = lead.workshop || "General";
+    lead.workshop = lead.workshop || "";
     lead.createdAt = lead.createdAt || new Date().toISOString().slice(0, 10);
 
-    lead.dialed = lead.dialed || "No";
-    lead.callStatus = lead.callStatus || "CNC";
-    // Missing wsStatus should not imply the lead is lost.
-    lead.wsStatus = lead.wsStatus || "Interested";
-    lead.whatsappInvite = lead.whatsappInvite || "No";
+    lead.dialed = lead.dialed || "";
+    lead.callStatus = lead.callStatus || "";
+    lead.wsStatus = lead.wsStatus || "";
+    lead.whatsappInvite = lead.whatsappInvite || "";
     lead.counselor = lead.counselor || "Unassigned";
 
-    lead.postDialed = lead.postDialed || "No";
-    lead.coursePitched = lead.coursePitched || "No";
-    lead.courseStatus = lead.courseStatus || "Interested";
-    lead.admissionStatus = lead.admissionStatus || "In-Converstion";
+    lead.postDialed = lead.postDialed || "";
+    lead.coursePitched = lead.coursePitched || "";
+    lead.courseStatus = lead.courseStatus || "";
+    lead.admissionStatus = lead.admissionStatus || "";
     lead.postStatusUpdated = typeof lead.postStatusUpdated === "boolean" ? lead.postStatusUpdated : false;
+    lead.workshopActivityHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
+    lead.admissionActivityHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
+    lead.preActivityUpdates = lead.workshopActivityHistory.length
+      || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
+    lead.postActivityUpdates = lead.admissionActivityHistory.length
+      || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
   });
 }
 
@@ -107,24 +121,16 @@ function isPostWorkshopLead(lead) {
 }
 
 function isLostLead(lead) {
-  if (lead.wsStatus === "Not Interested") {
-    return true;
-  }
-
-  if (isPostWorkshopLead(lead) && lead.postStatusUpdated && lead.courseStatus === "Not Interested") {
-    return true;
-  }
-
-  return false;
+  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
 }
 
 function getLostSource(lead) {
   if (lead.wsStatus === "Not Interested") {
-    return "Pre-Workshop";
+    return "Workshop Calling";
   }
 
-  if (isPostWorkshopLead(lead) && lead.courseStatus === "Not Interested") {
-    return "Post-Workshop";
+  if (lead.postStatusUpdated && lead.courseStatus === "Not Interested") {
+    return "Admission Calling";
   }
 
   return "Unknown";
@@ -210,7 +216,15 @@ function renderAll() {
 if (applyLostSearch) {
   applyLostSearch.onclick = () => {
     searchQuery = String(lostSearchInput?.value || "").trim();
+    persistSearchQuery();
     renderAll();
+  };
+}
+
+if (lostSearchInput) {
+  lostSearchInput.oninput = () => {
+    searchQuery = String(lostSearchInput.value || "").trim();
+    persistSearchQuery();
   };
 }
 
@@ -220,6 +234,7 @@ if (resetLostSearch) {
     if (lostSearchInput) {
       lostSearchInput.value = "";
     }
+    persistSearchQuery();
     renderAll();
   };
 }
