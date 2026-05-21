@@ -18,6 +18,11 @@ if (!MONGODB_URI) {
 }
 
 app.use(express.json({ limit: "5mb" }));
+
+app.get("/favicon.ico", (_req, res) => {
+  res.status(204).end();
+});
+
 app.use(express.static(ROOT_DIR));
 
 let stateCollection;
