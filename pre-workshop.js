@@ -352,6 +352,17 @@ function readAllocationFromForm() {
   }));
 }
 
+function appendAllocationRow() {
+  const current = readAllocationFromForm();
+  const nonEmpty = current.filter((item) => String(item.name || "").trim());
+  const nextNumber = nonEmpty.length + 1;
+
+  renderAllocationRows([
+    ...current,
+    { name: `Counselor ${nextNumber}`, percentage: 0 }
+  ]);
+}
+
 function createCounselorAssignments(totalLeads, allocation) {
   if (!totalLeads) {
     return [];
@@ -617,10 +628,13 @@ function setupAdminPanel() {
 
   void hydrateAllocationPanel();
 
-  addAllocationRowBtn.onclick = () => {
-    const current = readAllocationFromForm();
-    renderAllocationRows([...current, { name: "", percentage: 0 }]);
-  };
+  if (addAllocationRowBtn) {
+    addAllocationRowBtn.addEventListener("click", appendAllocationRow);
+  }
+
+  if (!saveAllocationBtn) {
+    return;
+  }
 
   saveAllocationBtn.onclick = () => {
     const nextAllocation = readAllocationFromForm();
