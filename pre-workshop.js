@@ -17,6 +17,7 @@ const importLeadsBtn = document.getElementById("importLeadsBtn");
 const importSummary = document.getElementById("importSummary");
 const importMessage = document.getElementById("importMessage");
 const allocationRows = document.getElementById("allocationRows");
+const addAllocationRowBtn = document.getElementById("addAllocationRowBtn");
 const saveAllocationBtn = document.getElementById("saveAllocationBtn");
 const allocationMessage = document.getElementById("allocationMessage");
 
@@ -262,6 +263,45 @@ function syncAllocationWithCounselors() {
   return synced;
 }
 
+async function fetchCounselorNamesFromApi() {
+  try {
+    const response = await fetch("/api/state", {
+      method: "GET",
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = await response.json();
+    if (!Array.isArray(payload?.counselors)) {
+      return [];
+    }
+
+    return [...new Set(
+      payload.counselors
+        .map((item) => String(item?.name || "").trim())
+        .filter(Boolean)
+    )];
+  } catch {
+    return [];
+  }
+}
+
+function mergeAllocationNames(names, existingAllocation) {
+  const byName = new Map(
+    existingAllocation.map((item) => [String(item.name || "").trim().toLowerCase(), Number(item.percentage || 0)])
+  );
+
+  return names.map((name) => ({
+    name,
+    percentage: byName.get(name.toLowerCase()) || 0
+  }));
+}
+
 function validateAllocation(allocation) {
   const cleaned = allocation
     .map((item) => ({
@@ -283,6 +323,13 @@ function validateAllocation(allocation) {
 }
 
 function renderAllocationRows(allocation) {
+  if (!allocation.length) {
+    allocationRows.innerHTML = `
+      <p class="block-help">No counselors found yet. Add counselors in Counselor Management or use Add Counselor Row.</p>
+    `;
+    return;
+  }
+
   allocationRows.innerHTML = allocation
     .map(
       (item, index) => `
@@ -547,7 +594,33 @@ function setupAdminPanel() {
     return;
   }
 
-  renderAllocationRows(syncAllocationWithCounselors());
+  const hydrateAllocationPanel = async () => {
+    let names = getActiveCounselorNames();
+    if (!names.length) {
+      names = await fetchCounselorNamesFromApi();
+    }
+
+    const existing = getAllocation();
+    const merged = names.length ? mergeAllocationNames(names, existing) : existing;
+
+    if (merged.length !== existing.length) {
+      saveAllocation(merged);
+    }
+
+    if (!merged.length) {
+      renderAllocationRows(syncAllocationWithCounselors());
+      return;
+    }
+
+    renderAllocationRows(merged);
+  };
+
+  void hydrateAllocationPanel();
+
+  addAllocationRowBtn.onclick = () => {
+    const current = readAllocationFromForm();
+    renderAllocationRows([...current, { name: "", percentage: 0 }]);
+  };
 
   saveAllocationBtn.onclick = () => {
     const nextAllocation = readAllocationFromForm();
