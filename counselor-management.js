@@ -91,6 +91,26 @@ function saveAllocation(allocation) {
   return syncStateFromLocal();
 }
 
+async function syncAllocationWithCounselors(counselors) {
+  const counselorNames = [...new Set(
+    counselors
+      .map((item) => String(item.name || "").trim())
+      .filter(Boolean)
+  )];
+
+  const existing = getAllocation();
+  const byName = new Map(
+    existing.map((item) => [String(item.name || "").trim().toLowerCase(), Number(item.percentage || 0)])
+  );
+
+  const next = counselorNames.map((name) => ({
+    name,
+    percentage: byName.get(name.toLowerCase()) || 0
+  }));
+
+  await saveAllocation(next);
+}
+
 function rebalanceAllocation(items) {
   if (!items.length) {
     return [];
@@ -136,6 +156,7 @@ async function removeCounselor(counselorId) {
 
   const nextCounselors = counselors.filter((item) => item.id !== counselorId);
   await saveCounselors(nextCounselors);
+  await syncAllocationWithCounselors(nextCounselors);
 
   const leads = getLeads();
   let changed = false;
@@ -281,6 +302,7 @@ counselorForm.addEventListener("submit", async (event) => {
   });
 
   await saveCounselors(counselors);
+  await syncAllocationWithCounselors(counselors);
   counselorForm.reset();
 
   // restore default checked state for convenience

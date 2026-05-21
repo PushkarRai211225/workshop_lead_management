@@ -16,6 +16,10 @@ function safeParseArray(value) {
 }
 
 export async function bootstrapLocalState() {
+  const localLeads = safeParseArray(localStorage.getItem(LEADS_KEY));
+  const localCounselors = safeParseArray(localStorage.getItem(COUNSELORS_KEY));
+  const localAllocation = safeParseArray(localStorage.getItem(ALLOCATION_KEY));
+
   try {
     const response = await fetch("/api/state", {
       method: "GET",
@@ -29,15 +33,36 @@ export async function bootstrapLocalState() {
     }
 
     const payload = await response.json();
-    localStorage.setItem(LEADS_KEY, JSON.stringify(Array.isArray(payload.leads) ? payload.leads : []));
-    localStorage.setItem(
-      COUNSELORS_KEY,
-      JSON.stringify(Array.isArray(payload.counselors) ? payload.counselors : [])
-    );
-    localStorage.setItem(
-      ALLOCATION_KEY,
-      JSON.stringify(Array.isArray(payload.allocation) ? payload.allocation : [])
-    );
+    const serverLeads = Array.isArray(payload.leads) ? payload.leads : [];
+    const serverCounselors = Array.isArray(payload.counselors) ? payload.counselors : [];
+    const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
+
+    const mergedLeads = serverLeads.length ? serverLeads : localLeads;
+    const mergedCounselors = serverCounselors.length ? serverCounselors : localCounselors;
+    const mergedAllocation = serverAllocation.length ? serverAllocation : localAllocation;
+
+    localStorage.setItem(LEADS_KEY, JSON.stringify(mergedLeads));
+    localStorage.setItem(COUNSELORS_KEY, JSON.stringify(mergedCounselors));
+    localStorage.setItem(ALLOCATION_KEY, JSON.stringify(mergedAllocation));
+
+    const shouldBackfillServer =
+      (!serverLeads.length && mergedLeads.length)
+      || (!serverCounselors.length && mergedCounselors.length)
+      || (!serverAllocation.length && mergedAllocation.length);
+
+    if (shouldBackfillServer) {
+      await fetch("/api/state", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          leads: mergedLeads,
+          counselors: mergedCounselors,
+          allocation: mergedAllocation
+        })
+      });
+    }
   } catch {
     // Keep local cache when API is temporarily unavailable.
   }

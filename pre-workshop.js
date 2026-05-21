@@ -201,24 +201,34 @@ function getAllocation() {
 
 function getActiveCounselorNames() {
   const raw = localStorage.getItem(COUNSELORS_KEY);
-  if (!raw) {
-    return [];
-  }
+  let names = [];
 
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        names = parsed
+          .map((item) => String(item.name || "").trim())
+          .filter(Boolean);
+      }
+    } catch {
+      names = [];
     }
-
-    return [...new Set(
-      parsed
-        .map((item) => String(item.name || "").trim())
-        .filter(Boolean)
-    )];
-  } catch {
-    return [];
   }
+
+  if (!names.length) {
+    names = getAllocation()
+      .map((item) => String(item.name || "").trim())
+      .filter(Boolean);
+  }
+
+  if (!names.length) {
+    names = getAllLeads()
+      .map((lead) => String(lead.counselor || "").trim())
+      .filter((name) => name && name.toLowerCase() !== "unassigned");
+  }
+
+  return [...new Set(names)];
 }
 
 function syncAllocationWithCounselors() {
