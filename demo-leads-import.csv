@@ -1,0 +1,101 @@
+name,email,phone,workshop,createdAt
+Lead 001,lead001@example.com,9000000001,AI/ML Masterclass,2026-05-01
+Lead 002,lead002@example.com,9000000002,Data Analytics Bootcamp,2026-05-02
+Lead 003,lead003@example.com,9000000003,Python for Data Science,2026-05-03
+Lead 004,lead004@example.com,9000000004,Generative AI Workshop,2026-05-04
+Lead 005,lead005@example.com,9000000005,Power BI Essentials,2026-05-05
+Lead 006,lead006@example.com,9000000006,AI/ML Masterclass,2026-05-06
+Lead 007,lead007@example.com,9000000007,Data Analytics Bootcamp,2026-05-07
+Lead 008,lead008@example.com,9000000008,Python for Data Science,2026-05-08
+Lead 009,lead009@example.com,9000000009,Generative AI Workshop,2026-05-09
+Lead 010,lead010@example.com,9000000010,Power BI Essentials,2026-05-10
+Lead 011,lead011@example.com,9000000011,AI/ML Masterclass,2026-05-11
+Lead 012,lead012@example.com,9000000012,Data Analytics Bootcamp,2026-05-12
+Lead 013,lead013@example.com,9000000013,Python for Data Science,2026-05-13
+Lead 014,lead014@example.com,9000000014,Generative AI Workshop,2026-05-14
+Lead 015,lead015@example.com,9000000015,Power BI Essentials,2026-05-15
+Lead 016,lead016@example.com,9000000016,AI/ML Masterclass,2026-05-16
+Lead 017,lead017@example.com,9000000017,Data Analytics Bootcamp,2026-05-17
+Lead 018,lead018@example.com,9000000018,Python for Data Science,2026-05-18
+Lead 019,lead019@example.com,9000000019,Generative AI Workshop,2026-05-19
+Lead 020,lead020@example.com,9000000020,Power BI Essentials,2026-05-20
+Lead 021,lead021@example.com,9000000021,AI/ML Masterclass,2026-05-01
+Lead 022,lead022@example.com,9000000022,Data Analytics Bootcamp,2026-05-02
+Lead 023,lead023@example.com,9000000023,Python for Data Science,2026-05-03
+Lead 024,lead024@example.com,9000000024,Generative AI Workshop,2026-05-04
+Lead 025,lead025@example.com,9000000025,Power BI Essentials,2026-05-05
+Lead 026,lead026@example.com,9000000026,AI/ML Masterclass,2026-05-06
+Lead 027,lead027@example.com,9000000027,Data Analytics Bootcamp,2026-05-07
+Lead 028,lead028@example.com,9000000028,Python for Data Science,2026-05-08
+Lead 029,lead029@example.com,9000000029,Generative AI Workshop,2026-05-09
+Lead 030,lead030@example.com,9000000030,Power BI Essentials,2026-05-10
+Lead 031,lead031@example.com,9000000031,AI/ML Masterclass,2026-05-11
+Lead 032,lead032@example.com,9000000032,Data Analytics Bootcamp,2026-05-12
+Lead 033,lead033@example.com,9000000033,Python for Data Science,2026-05-13
+Lead 034,lead034@example.com,9000000034,Generative AI Workshop,2026-05-14
+Lead 035,lead035@example.com,9000000035,Power BI Essentials,2026-05-15
+Lead 036,lead036@example.com,9000000036,AI/ML Masterclass,2026-05-16
+Lead 037,lead037@example.com,9000000037,Data Analytics Bootcamp,2026-05-17
+Lead 038,lead038@example.com,9000000038,Python for Data Science,2026-05-18
+Lead 039,lead039@example.com,9000000039,Generative AI Workshop,2026-05-19
+Lead 040,lead040@example.com,9000000040,Power BI Essentials,2026-05-20
+Lead 041,lead041@example.com,9000000041,AI/ML Masterclass,2026-05-01
+Lead 042,lead042@example.com,9000000042,Data Analytics Bootcamp,2026-05-02
+Lead 043,lead043@example.com,9000000043,Python for Data Science,2026-05-03
+Lead 044,lead044@example.com,9000000044,Generative AI Workshop,2026-05-04
+Lead 045,lead045@example.com,9000000045,Power BI Essentials,2026-05-05
+Lead 046,lead046@example.com,9000000046,AI/ML Masterclass,2026-05-06
+Lead 047,lead047@example.com,9000000047,Data Analytics Bootcamp,2026-05-07
+Lead 048,lead048@example.com,9000000048,Python for Data Science,2026-05-08
+Lead 049,lead049@example.com,9000000049,Generative AI Workshop,2026-05-09
+Lead 050,lead050@example.com,9000000050,Power BI Essentials,2026-05-10
+Lead 051,lead051@example.com,9000000051,AI/ML Masterclass,2026-05-11
+Lead 052,lead052@example.com,9000000052,Data Analytics Bootcamp,2026-05-12
+Lead 053,lead053@example.com,9000000053,Python for Data Science,2026-05-13
+Lead 054,lead054@example.com,9000000054,Generative AI Workshop,2026-05-14
+Lead 055,lead055@example.com,9000000055,Power BI Essentials,2026-05-15
+Lead 056,lead056@example.com,9000000056,AI/ML Masterclass,2026-05-16
+Lead 057,lead057@example.com,9000000057,Data Analytics Bootcamp,2026-05-17
+Lead 058,lead058@example.com,9000000058,Python for Data Science,2026-05-18
+Lead 059,lead059@example.com,9000000059,Generative AI Workshop,2026-05-19
+Lead 060,lead060@example.com,9000000060,Power BI Essentials,2026-05-20
+Lead 061,lead061@example.com,9000000061,AI/ML Masterclass,2026-05-01
+Lead 062,lead062@example.com,9000000062,Data Analytics Bootcamp,2026-05-02
+Lead 063,lead063@example.com,9000000063,Python for Data Science,2026-05-03
+Lead 064,lead064@example.com,9000000064,Generative AI Workshop,2026-05-04
+Lead 065,lead065@example.com,9000000065,Power BI Essentials,2026-05-05
+Lead 066,lead066@example.com,9000000066,AI/ML Masterclass,2026-05-06
+Lead 067,lead067@example.com,9000000067,Data Analytics Bootcamp,2026-05-07
+Lead 068,lead068@example.com,9000000068,Python for Data Science,2026-05-08
+Lead 069,lead069@example.com,9000000069,Generative AI Workshop,2026-05-09
+Lead 070,lead070@example.com,9000000070,Power BI Essentials,2026-05-10
+Lead 071,lead071@example.com,9000000071,AI/ML Masterclass,2026-05-11
+Lead 072,lead072@example.com,9000000072,Data Analytics Bootcamp,2026-05-12
+Lead 073,lead073@example.com,9000000073,Python for Data Science,2026-05-13
+Lead 074,lead074@example.com,9000000074,Generative AI Workshop,2026-05-14
+Lead 075,lead075@example.com,9000000075,Power BI Essentials,2026-05-15
+Lead 076,lead076@example.com,9000000076,AI/ML Masterclass,2026-05-16
+Lead 077,lead077@example.com,9000000077,Data Analytics Bootcamp,2026-05-17
+Lead 078,lead078@example.com,9000000078,Python for Data Science,2026-05-18
+Lead 079,lead079@example.com,9000000079,Generative AI Workshop,2026-05-19
+Lead 080,lead080@example.com,9000000080,Power BI Essentials,2026-05-20
+Lead 081,lead081@example.com,9000000081,AI/ML Masterclass,2026-05-01
+Lead 082,lead082@example.com,9000000082,Data Analytics Bootcamp,2026-05-02
+Lead 083,lead083@example.com,9000000083,Python for Data Science,2026-05-03
+Lead 084,lead084@example.com,9000000084,Generative AI Workshop,2026-05-04
+Lead 085,lead085@example.com,9000000085,Power BI Essentials,2026-05-05
+Lead 086,lead086@example.com,9000000086,AI/ML Masterclass,2026-05-06
+Lead 087,lead087@example.com,9000000087,Data Analytics Bootcamp,2026-05-07
+Lead 088,lead088@example.com,9000000088,Python for Data Science,2026-05-08
+Lead 089,lead089@example.com,9000000089,Generative AI Workshop,2026-05-09
+Lead 090,lead090@example.com,9000000090,Power BI Essentials,2026-05-10
+Lead 091,lead091@example.com,9000000091,AI/ML Masterclass,2026-05-11
+Lead 092,lead092@example.com,9000000092,Data Analytics Bootcamp,2026-05-12
+Lead 093,lead093@example.com,9000000093,Python for Data Science,2026-05-13
+Lead 094,lead094@example.com,9000000094,Generative AI Workshop,2026-05-14
+Lead 095,lead095@example.com,9000000095,Power BI Essentials,2026-05-15
+Lead 096,lead096@example.com,9000000096,AI/ML Masterclass,2026-05-16
+Lead 097,lead097@example.com,9000000097,Data Analytics Bootcamp,2026-05-17
+Lead 098,lead098@example.com,9000000098,Python for Data Science,2026-05-18
+Lead 099,lead099@example.com,9000000099,Generative AI Workshop,2026-05-19
+Lead 100,lead100@example.com,9000000100,Power BI Essentials,2026-05-20
