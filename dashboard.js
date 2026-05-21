@@ -112,6 +112,23 @@ function getTimelineRange(leads) {
   const start = new Date(referenceDate);
   const end = new Date(referenceDate);
 
+  if (preset === "overall") {
+    if (!leads.length) {
+      return {
+        start,
+        end,
+        label: "Overall: All available lead data"
+      };
+    }
+
+    const dates = leads.map((lead) => parseDateKey(lead.createdAt)).sort((a, b) => a - b);
+    return {
+      start: dates[0],
+      end: dates[dates.length - 1],
+      label: "Overall: All available lead data"
+    };
+  }
+
   if (preset === "daily") {
     return {
       start,

@@ -116,6 +116,10 @@ function getAllLeads() {
 }
 
 function applyTimelineFilter(leads) {
+  if (timelineFilter.type === "overall") {
+    return leads;
+  }
+
   if (timelineFilter.type === "today") {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

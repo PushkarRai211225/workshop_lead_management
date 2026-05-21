@@ -756,6 +756,10 @@ function getUniqueWorkshops(leads) {
 }
 
 function filterByTimeline(leads) {
+  if (filter.timeline === "overall") {
+    return leads;
+  }
+
   if (filter.timeline === "today") {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -890,6 +894,7 @@ function renderFilters(leads) {
       <div class="filter-item">
         <label for="timelineSelect">Timeline</label>
         <select id="timelineSelect">
+          <option value="overall">Overall</option>
           <option value="today">Today</option>
           <option value="yesterday">Yesterday</option>
           <option value="week">Week</option>
