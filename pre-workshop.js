@@ -3,6 +3,7 @@ import { bootstrapLocalState, syncStateFromLocal } from "./state-sync.js";
 const LEADS_KEY = "dvWorkshopLeads";
 const ALLOCATION_KEY = "dvCounselorAllocation";
 const SESSION_KEY = "dvWorkshopSession";
+const COUNSELORS_KEY = "dvCounselors";
 
 await bootstrapLocalState();
 
@@ -26,12 +27,41 @@ function isCounselorSession() {
   return session?.role === "counselor";
 }
 
+function getCounselorIdentity() {
+  if (!isCounselorSession()) {
+    return "";
+  }
+
+  const sessionName = String(session?.name || "").trim().toLowerCase();
+  const sessionEmail = String(session?.email || "").trim().toLowerCase();
+  const raw = localStorage.getItem(COUNSELORS_KEY);
+
+  if (!raw) {
+    return sessionName;
+  }
+
+  try {
+    const counselors = JSON.parse(raw);
+    if (!Array.isArray(counselors)) {
+      return sessionName;
+    }
+
+    const match = counselors.find(
+      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+    );
+
+    return String(match?.name || session?.name || "").trim().toLowerCase();
+  } catch {
+    return sessionName;
+  }
+}
+
 function getScopedLeads(allLeads) {
   if (!isCounselorSession()) {
     return allLeads;
   }
 
-  const counselorName = String(session?.name || "").trim().toLowerCase();
+  const counselorName = getCounselorIdentity();
   if (!counselorName) {
     return [];
   }
@@ -167,6 +197,59 @@ function getAllocation() {
     localStorage.setItem(ALLOCATION_KEY, JSON.stringify(DEFAULT_ALLOCATION));
     return structuredClone(DEFAULT_ALLOCATION);
   }
+}
+
+function getActiveCounselorNames() {
+  const raw = localStorage.getItem(COUNSELORS_KEY);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return [...new Set(
+      parsed
+        .map((item) => String(item.name || "").trim())
+        .filter(Boolean)
+    )];
+  } catch {
+    return [];
+  }
+}
+
+function syncAllocationWithCounselors() {
+  const counselorNames = getActiveCounselorNames();
+  const existing = getAllocation();
+  const byName = new Map(
+    existing.map((item) => [String(item.name || "").trim().toLowerCase(), item])
+  );
+
+  const synced = counselorNames.map((name) => {
+    const found = byName.get(name.toLowerCase());
+    return {
+      name,
+      percentage: Number(found?.percentage || 0)
+    };
+  });
+
+  const hasChanged =
+    synced.length !== existing.length
+    || synced.some((item, index) => {
+      const current = existing[index];
+      return !current
+        || String(current.name || "").trim() !== item.name
+        || Number(current.percentage || 0) !== item.percentage;
+    });
+
+  if (hasChanged) {
+    saveAllocation(synced);
+  }
+
+  return synced;
 }
 
 function validateAllocation(allocation) {
@@ -454,7 +537,7 @@ function setupAdminPanel() {
     return;
   }
 
-  renderAllocationRows(getAllocation());
+  renderAllocationRows(syncAllocationWithCounselors());
 
   saveAllocationBtn.onclick = () => {
     const nextAllocation = readAllocationFromForm();
@@ -842,6 +925,13 @@ function updateLeadActivity(leadId, updates) {
     return;
   }
 
+  if (isCounselorSession()) {
+    const owner = String(allLeads[index].counselor || "").trim().toLowerCase();
+    if (owner !== getCounselorIdentity()) {
+      return;
+    }
+  }
+
   allLeads[index] = {
     ...allLeads[index],
     ...updates,
@@ -858,6 +948,13 @@ function openActivityStatusModal(leadId) {
 
   if (!lead) {
     return;
+  }
+
+  if (isCounselorSession()) {
+    const owner = String(lead.counselor || "").trim().toLowerCase();
+    if (owner !== getCounselorIdentity()) {
+      return;
+    }
   }
 
   document.getElementById("modalDialed").value = lead.dialed;

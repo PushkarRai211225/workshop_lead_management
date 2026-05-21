@@ -2,6 +2,7 @@ import { bootstrapLocalState, syncStateFromLocal } from "./state-sync.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
 const SESSION_KEY = "dvWorkshopSession";
+const COUNSELORS_KEY = "dvCounselors";
 
 await bootstrapLocalState();
 
@@ -35,12 +36,41 @@ function isCounselorSession() {
   return session?.role === "counselor";
 }
 
+function getCounselorIdentity() {
+  if (!isCounselorSession()) {
+    return "";
+  }
+
+  const sessionName = String(session?.name || "").trim().toLowerCase();
+  const sessionEmail = String(session?.email || "").trim().toLowerCase();
+  const raw = localStorage.getItem(COUNSELORS_KEY);
+
+  if (!raw) {
+    return sessionName;
+  }
+
+  try {
+    const counselors = JSON.parse(raw);
+    if (!Array.isArray(counselors)) {
+      return sessionName;
+    }
+
+    const match = counselors.find(
+      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+    );
+
+    return String(match?.name || session?.name || "").trim().toLowerCase();
+  } catch {
+    return sessionName;
+  }
+}
+
 function getScopedLeads(allLeads) {
   if (!isCounselorSession()) {
     return allLeads;
   }
 
-  const counselorName = String(session?.name || "").trim().toLowerCase();
+  const counselorName = getCounselorIdentity();
   if (!counselorName) {
     return [];
   }
@@ -348,6 +378,13 @@ function updatePostActivity(leadId, updates) {
     return;
   }
 
+  if (isCounselorSession()) {
+    const owner = String(allLeads[index].counselor || "").trim().toLowerCase();
+    if (owner !== getCounselorIdentity()) {
+      return;
+    }
+  }
+
   allLeads[index] = {
     ...allLeads[index],
     ...updates,
@@ -363,6 +400,13 @@ function openPostActivityModal(leadId) {
   const lead = allLeads.find((item) => String(item.id) === String(leadId));
   if (!lead) {
     return;
+  }
+
+  if (isCounselorSession()) {
+    const owner = String(lead.counselor || "").trim().toLowerCase();
+    if (owner !== getCounselorIdentity()) {
+      return;
+    }
   }
 
   document.getElementById("modalPostDialed").value = lead.postDialed;
