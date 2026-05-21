@@ -16,7 +16,32 @@ const DEFAULT_PERMISSIONS = {
 
 await bootstrapLocalState();
 
-function getCounselors() {
+function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch(url, {
+    ...options,
+    signal: controller.signal
+  }).finally(() => clearTimeout(timeoutId));
+}
+
+function normalizeCounselors(counselors) {
+  if (!Array.isArray(counselors)) {
+    return [];
+  }
+
+  return counselors.map((item) => ({
+    ...item,
+    email: String(item.email || "").toLowerCase(),
+    permissions: {
+      ...DEFAULT_PERMISSIONS,
+      ...(item.permissions || {})
+    }
+  }));
+}
+
+function getLocalCounselors() {
   const raw = localStorage.getItem(COUNSELORS_KEY);
 
   if (!raw) {
@@ -29,17 +54,31 @@ function getCounselors() {
       throw new Error("Invalid counselor payload");
     }
 
-    return parsed.map((item) => ({
-      ...item,
-      email: String(item.email || "").toLowerCase(),
-      permissions: {
-        ...DEFAULT_PERMISSIONS,
-        ...(item.permissions || {})
-      }
-    }));
+    return normalizeCounselors(parsed);
   } catch {
     return [];
   }
+}
+
+async function getCounselors() {
+  try {
+    const response = await fetchWithTimeout("/api/counselors", {
+      method: "GET",
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
+    if (response.ok) {
+      const counselors = normalizeCounselors(await response.json());
+      localStorage.setItem(COUNSELORS_KEY, JSON.stringify(counselors));
+      return counselors;
+    }
+  } catch {
+    // Fall back to local browser state when the shared API is unavailable.
+  }
+
+  return getLocalCounselors();
 }
 
 const roleButtons = document.querySelectorAll(".role-btn");
@@ -56,7 +95,7 @@ roleButtons.forEach((button) => {
   });
 });
 
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const role = selectedRoleInput.value;
@@ -77,7 +116,8 @@ loginForm.addEventListener("submit", (event) => {
 
   if (role === "counselor") {
     const email = identifier.toLowerCase();
-    const counselor = getCounselors().find(
+    const counselors = await getCounselors();
+    const counselor = counselors.find(
       (item) => item.email === email && item.password === password
     );
 
@@ -105,6 +145,11 @@ loginForm.addEventListener("submit", (event) => {
               : "index.html";
 
       window.location.href = landing;
+      return;
+    }
+
+    if (!counselors.length) {
+      loginMessage.textContent = "Counselor credentials are not available on this deployment. Check Vercel MONGODB_URI and make sure counselor records exist in the shared database.";
       return;
     }
   }

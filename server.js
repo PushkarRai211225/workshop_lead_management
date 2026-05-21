@@ -12,11 +12,6 @@ const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || "dv_workshop_site";
 const MONGODB_STATE_COLLECTION = process.env.MONGODB_STATE_COLLECTION || "app_state";
 const STATE_DOC_ID = "global";
 
-if (!MONGODB_URI) {
-  console.error("Missing MONGODB_URI in environment.");
-  process.exit(1);
-}
-
 app.use(express.json({ limit: "5mb" }));
 
 app.get("/favicon.ico", (_req, res) => {
@@ -31,6 +26,10 @@ let mongoInitPromise;
 async function initMongo() {
   if (stateCollection) {
     return;
+  }
+
+  if (!MONGODB_URI) {
+    throw new Error("Missing MONGODB_URI in environment.");
   }
 
   if (!mongoInitPromise) {
