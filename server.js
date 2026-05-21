@@ -21,6 +21,33 @@ app.use(express.json({ limit: "5mb" }));
 app.use(express.static(ROOT_DIR));
 
 let stateCollection;
+let mongoInitPromise;
+
+async function initMongo() {
+  if (stateCollection) {
+    return;
+  }
+
+  if (!mongoInitPromise) {
+    mongoInitPromise = (async () => {
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db(MONGODB_DB_NAME);
+      stateCollection = db.collection(MONGODB_STATE_COLLECTION);
+    })();
+  }
+
+  await mongoInitPromise;
+}
+
+app.use("/api", async (_req, res, next) => {
+  try {
+    await initMongo();
+    next();
+  } catch (error) {
+    res.status(500).json({ message: "Database connection failed", details: error.message });
+  }
+});
 
 function sanitizeState(payload = {}) {
   const next = {};
@@ -221,10 +248,7 @@ app.get("/dashboard", (_req, res) => {
 });
 
 async function start() {
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
-  const db = client.db(MONGODB_DB_NAME);
-  stateCollection = db.collection(MONGODB_STATE_COLLECTION);
+  await initMongo();
 
   app.listen(PORT, () => {
     console.log(`DV Workshop platform is running at http://localhost:${PORT}`);
@@ -232,7 +256,11 @@ async function start() {
   });
 }
 
-start().catch((error) => {
-  console.error("Server startup failed:", error.message);
-  process.exit(1);
-});
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  start().catch((error) => {
+    console.error("Server startup failed:", error.message);
+    process.exit(1);
+  });
+}
