@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monitoring | Counselor Performance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard-body">
+  <div class="layout-root">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="Logos/DV-Logo.png" alt="DV Analytics" class="sidebar-logo" />
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="sidebar-link">Dashboard</a>
+        <a href="pre-workshop.html" class="sidebar-link">Pre-Workshop</a>
+        <a href="post-workshop.html" class="sidebar-link">Post-Workshop</a>
+        <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
+        <a href="monitoring.html" class="sidebar-link">Monitoring</a>
+      </nav>
+      <a href="counselor-management.html" class="sidebar-link sidebar-link-bottom admin-only" data-admin-only="true">Counselor Management</a>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Monitoring Dashboard</h1>
+          <p>Analyze counselor performance, lead engagement activity, and conversion movement.</p>
+        </div>
+        <div class="topbar-profile">
+          <span class="role-tag" data-role-tag></span>
+          <button data-logout class="btn-ghost" type="button">Log out</button>
+        </div>
+      </header>
+
+      <section class="card filter-bar">
+        <div class="filter-row">
+          <div class="filter-item">
+            <label for="monitoringTimelineSelect">Timeline</label>
+            <select id="monitoringTimelineSelect">
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="week" selected>Week</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+          <div class="filter-item hidden" id="monitoringStartDateWrap">
+            <label for="monitoringStartDate">Start Date</label>
+            <input id="monitoringStartDate" type="date" />
+          </div>
+          <div class="filter-item hidden" id="monitoringEndDateWrap">
+            <label for="monitoringEndDate">End Date</label>
+            <input id="monitoringEndDate" type="date" />
+          </div>
+          <div class="filter-item filter-item-cta">
+            <label>&nbsp;</label>
+            <div class="filter-actions">
+              <button id="applyMonitoringTimeline" class="btn-ghost" type="button">Apply</button>
+              <button id="resetMonitoringTimeline" class="btn-ghost" type="button">Reset</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="monitoringKpiSection"></section>
+
+      <section class="card table-card monitoring-panel">
+        <div class="card-head">
+          <h3>Pre-Workshop Monitoring</h3>
+          <p>Counselor activity and pre-stage lead engagement summary.</p>
+        </div>
+        <div id="preMonitoringTable"></div>
+      </section>
+
+      <section class="card table-card monitoring-panel">
+        <div class="card-head">
+          <h3>Post-Workshop Monitoring</h3>
+          <p>Counselor post-stage follow-up and conversion activity summary.</p>
+        </div>
+        <div id="postMonitoringTable"></div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="monitoring.js"></script>
+  <script type="module" src="layouts.js"></script>
+</body>
+</html>

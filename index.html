@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DV Workshop Lead Platform | Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="auth-body">
+  <main class="auth-shell">
+    <section class="card auth-card">
+
+      <div class="brand-wrap">
+        <img src="Logos/DV-Logo.png" alt="DV Analytics" class="brand-logo" />
+        <p class="subtitle">Workshop Lead Management Platform</p>
+      </div>
+      <header class="auth-header">
+        <h1>Welcome Back</h1>
+        <p>Sign in to access workshop leads and analytics.</p>
+      </header>
+
+      <div class="role-switch" role="tablist" aria-label="Login role selector">
+        <button type="button" class="role-btn active" data-role="admin">Admin Login</button>
+        <button type="button" class="role-btn" data-role="counselor">Counselor Login</button>
+      </div>
+
+      <form id="loginForm" class="auth-form">
+        <input type="hidden" id="selectedRole" value="admin" />
+
+        <label for="email">Admin ID / Counselor Email</label>
+        <input id="email" name="email" type="text" placeholder="Enter admin ID or counselor email" required />
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" placeholder="Enter password" required />
+
+        <button type="submit" class="btn-primary">Continue</button>
+      </form>
+
+      <p id="loginMessage" class="message" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script type="module" src="login.js"></script>
+</body>
+</html>

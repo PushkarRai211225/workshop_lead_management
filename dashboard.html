@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DV Workshop Lead Platform | Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dashboard-body">
+  <div class="layout-root">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="Logos/DV-Logo.png" alt="DV Analytics" class="sidebar-logo" />
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="sidebar-link">Dashboard</a>
+        <a href="pre-workshop.html" class="sidebar-link">Pre-Workshop</a>
+        <a href="post-workshop.html" class="sidebar-link">Post-Workshop</a>
+        <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
+        <a href="monitoring.html" class="sidebar-link">Monitoring</a>
+      </nav>
+      <a href="counselor-management.html" class="sidebar-link sidebar-link-bottom admin-only" data-admin-only="true">Counselor Management</a>
+    </aside>
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Workshop Lead Dashboard</h1>
+          <p>Track and manage workshop lead performance.</p>
+        </div>
+        <div class="topbar-profile">
+          <span class="role-tag" data-role-tag></span>
+          <button data-logout class="btn-ghost" type="button">Log out</button>
+        </div>
+      </header>
+
+      <section class="card timeline-card">
+        <div class="timeline-head">
+          <h3>Timeline Filters</h3>
+          <p id="activeRangeLabel">Showing all lead data.</p>
+        </div>
+
+        <div class="timeline-controls">
+          <label for="timelinePreset">Period</label>
+          <select id="timelinePreset" aria-label="Select timeline period">
+            <option value="daily">Daily</option>
+            <option value="weekly" selected>Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="custom">Custom Range</option>
+          </select>
+
+          <div id="customRangeFields" class="custom-range-fields hidden">
+            <label for="startDate">From</label>
+            <input id="startDate" type="date" />
+            <label for="endDate">To</label>
+            <input id="endDate" type="date" />
+            <button id="applyCustomRange" type="button" class="btn-ghost">Apply</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="kpi-grid">
+        <article class="card kpi-card">
+          <p>Overall Leads</p>
+          <h2 id="overallLeads">0</h2>
+        </article>
+        <article class="card kpi-card">
+          <p>New Leads</p>
+          <h2 id="newLeads">0</h2>
+        </article>
+        <article class="card kpi-card">
+          <p>Interested Leads</p>
+          <h2 id="interestedLeads">0</h2>
+        </article>
+        <article class="card kpi-card">
+          <p>Converted Leads</p>
+          <h2 id="convertedLeads">0</h2>
+        </article>
+      </section>
+
+      <section class="chart-grid">
+        <article class="card chart-card">
+          <div class="card-head">
+            <h3>New Leads Trend</h3>
+            <p id="trendRangeText">Timeline-aligned trend</p>
+          </div>
+          <canvas id="newLeadsTrendChart" aria-label="New leads trend line chart"></canvas>
+        </article>
+
+        <article class="card chart-card">
+          <div class="card-head">
+            <h3>Workshop-wise Lead Breakdown</h3>
+            <p id="pieRangeText">Total leads by workshop</p>
+          </div>
+          <canvas id="workshopBreakdownChart" aria-label="Workshop wise overall lead breakdown pie chart"></canvas>
+        </article>
+      </section>
+
+      <section class="card interested-card">
+        <div class="card-head">
+          <h3>Workshop-wise Interested Leads</h3>
+          <p id="interestedPanelNote">Distribution of interested leads across workshops.</p>
+        </div>
+
+        <div id="interestedWorkshopList" class="interested-workshop-list"></div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="dashboard.js"></script>
+  <script type="module" src="layouts.js"></script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pre-Workshop Lead Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard-body">
+  <div class="layout-root">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="Logos/DV-Logo.png" alt="DV Analytics" class="sidebar-logo" />
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="sidebar-link">Dashboard</a>
+        <a href="pre-workshop.html" class="sidebar-link">Pre-Workshop</a>
+        <a href="post-workshop.html" class="sidebar-link">Post-Workshop</a>
+        <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
+        <a href="monitoring.html" class="sidebar-link">Monitoring</a>
+      </nav>
+      <a href="counselor-management.html" class="sidebar-link sidebar-link-bottom admin-only" data-admin-only="true">Counselor Management</a>
+    </aside>
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Pre-Workshop Lead Management</h1>
+          <p>Manage and analyze leads before the workshop.</p>
+        </div>
+        <div class="topbar-profile">
+          <span class="role-tag" data-role-tag></span>
+          <button data-logout class="btn-ghost" type="button">Log out</button>
+        </div>
+      </header>
+
+      <section class="card admin-panel" id="adminImportPanel">
+        <div class="card-head">
+          <h3>Lead Import & Counselor Allocation</h3>
+          <p>Upload leads and auto-assign counselors using percentage allocation.</p>
+        </div>
+
+        <div class="import-grid">
+          <div class="import-block">
+            <h4>Lead Import</h4>
+            <p class="block-help">Supported formats: .xlsx, .csv</p>
+            <input id="leadImportFile" type="file" accept=".xlsx,.csv" />
+            <button id="importLeadsBtn" type="button" class="btn-primary">Import Leads</button>
+          </div>
+
+          <div class="import-block">
+            <h4>Import Summary</h4>
+            <div class="import-summary" id="importSummary">
+              <p>Total Leads Imported: 0</p>
+              <p>Successful Imports: 0</p>
+              <p>Failed Entries: 0</p>
+            </div>
+            <p id="importMessage" class="message" aria-live="polite"></p>
+          </div>
+        </div>
+
+        <div class="allocation-block">
+          <div class="card-head">
+            <h4>Counselor Allocation</h4>
+            <p>Total allocation must be 100%</p>
+          </div>
+          <div id="allocationRows" class="allocation-rows"></div>
+          <div class="allocation-actions">
+            <button id="saveAllocationBtn" type="button" class="btn-ghost">Save Allocation</button>
+          </div>
+          <p id="allocationMessage" class="message" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="preKpiSection"></section>
+      <section class="card filter-bar" id="preFilterBar"></section>
+      <section class="card table-card" id="preLeadTableSection"></section>
+
+      <!-- Activity Status Modal -->
+      <div id="activityStatusModal" class="modal hidden">
+        <div class="modal-content card">
+          <h3>Update Activity Status</h3>
+          <form id="activityStatusForm">
+            <div class="modal-row">
+              <label>Dialed:</label>
+              <select id="modalDialed">
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="modal-row">
+              <label>Call Status:</label>
+              <select id="modalCallStatus">
+                <option value="Connected">Connected</option>
+                <option value="CBL">CBL</option>
+                <option value="DNP">DNP</option>
+                <option value="CNC">CNC</option>
+              </select>
+            </div>
+            <div class="modal-row">
+              <label>Workshop Status:</label>
+              <select id="modalWsStatus">
+                <option value="Interested">Interested</option>
+                <option value="Not Interested">Not Interested</option>
+              </select>
+            </div>
+            <div class="modal-row">
+              <label>WhatsApp Invitation Sent:</label>
+              <select id="modalWhatsappInvite">
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button type="submit" class="btn-primary">Save</button>
+              <button type="button" id="closeModalBtn" class="btn-ghost">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script type="module" src="pre-workshop.js"></script>
+  <script type="module" src="layouts.js"></script>
+</body>
+</html>

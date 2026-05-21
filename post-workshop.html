@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Post-Workshop Lead Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard-body">
+  <div class="layout-root">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="Logos/DV-Logo.png" alt="DV Analytics" class="sidebar-logo" />
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="sidebar-link">Dashboard</a>
+        <a href="pre-workshop.html" class="sidebar-link">Pre-Workshop</a>
+        <a href="post-workshop.html" class="sidebar-link">Post-Workshop</a>
+        <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
+        <a href="monitoring.html" class="sidebar-link">Monitoring</a>
+      </nav>
+      <a href="counselor-management.html" class="sidebar-link sidebar-link-bottom admin-only" data-admin-only="true">Counselor Management</a>
+    </aside>
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Post-Workshop Lead Management</h1>
+          <p>Track follow-ups and course conversion after workshop engagement.</p>
+        </div>
+        <div class="topbar-profile">
+          <span class="role-tag" data-role-tag></span>
+          <button data-logout class="btn-ghost" type="button">Log out</button>
+        </div>
+      </header>
+
+      <section class="kpi-grid" id="postKpiSection"></section>
+      <section class="card filter-bar" id="postFilterBar"></section>
+      <section class="card table-card" id="postLeadTableSection"></section>
+
+      <div id="postActivityModal" class="modal hidden">
+        <div class="modal-content card">
+          <h3>Update Post-Workshop Activity</h3>
+          <form id="postActivityForm">
+            <div class="modal-row">
+              <label for="modalPostDialed">Dialed</label>
+              <select id="modalPostDialed">
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="modal-row">
+              <label for="modalCoursePitched">Course Pitched</label>
+              <select id="modalCoursePitched">
+                <option value="No">No</option>
+                <option value="APIDA">APIDA</option>
+                <option value="APIDS">APIDS</option>
+                <option value="Advanced AI/ML">Advanced AI/ML</option>
+                <option value="Gen AI">Gen AI</option>
+              </select>
+            </div>
+            <div class="modal-row">
+              <label for="modalCourseStatus">Course Status</label>
+              <select id="modalCourseStatus">
+                <option value="Interested">Interested</option>
+                <option value="Not Interested">Not Interested</option>
+              </select>
+            </div>
+            <div class="modal-row">
+              <label for="modalAdmissionStatus">Admission</label>
+              <select id="modalAdmissionStatus">
+                <option value="In-Converstion">In-Converstion</option>
+                <option value="Enrolled">Enrolled</option>
+                <option value="Won">Won</option>
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button type="submit" class="btn-primary">Save</button>
+              <button type="button" id="closePostModalBtn" class="btn-ghost">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="post-workshop.js"></script>
+  <script type="module" src="layouts.js"></script>
+</body>
+</html>

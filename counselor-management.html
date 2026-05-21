@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Counselor Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard-body">
+  <div class="layout-root">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="Logos/DV-Logo.png" alt="DV Analytics" class="sidebar-logo" />
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="sidebar-link">Dashboard</a>
+        <a href="pre-workshop.html" class="sidebar-link">Pre-Workshop</a>
+        <a href="post-workshop.html" class="sidebar-link">Post-Workshop</a>
+        <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
+        <a href="monitoring.html" class="sidebar-link">Monitoring</a>
+      </nav>
+      <a href="counselor-management.html" class="sidebar-link sidebar-link-bottom admin-only" data-admin-only="true">Counselor Management</a>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Counselor Management</h1>
+          <p>Create counselors and assign page access permissions.</p>
+        </div>
+        <div class="topbar-profile">
+          <span class="role-tag" data-role-tag></span>
+          <button data-logout class="btn-ghost" type="button">Log out</button>
+        </div>
+      </header>
+
+      <section class="card admin-panel">
+        <div class="management-grid">
+          <div class="import-block">
+            <h4>Create Counselor</h4>
+            <form id="counselorForm" class="auth-form">
+              <label for="counselorName">Name</label>
+              <input id="counselorName" type="text" required />
+
+              <label for="counselorEmail">Email</label>
+              <input id="counselorEmail" type="email" required />
+
+              <label for="counselorPhone">Phone Number</label>
+              <input id="counselorPhone" type="tel" required />
+
+              <label for="counselorPassword">Password</label>
+              <input id="counselorPassword" type="password" required />
+
+              <label>Access Permissions</label>
+              <div class="permissions-grid">
+                <label class="permission-option"><input type="checkbox" name="permission" value="preWorkshop" checked /> Pre-Workshop</label>
+                <label class="permission-option"><input type="checkbox" name="permission" value="postWorkshop" checked /> Post-Workshop</label>
+                <label class="permission-option"><input type="checkbox" name="permission" value="lostLeads" checked /> Lost Leads</label>
+                <label class="permission-option"><input type="checkbox" name="permission" value="monitoring" checked /> Monitoring</label>
+              </div>
+
+              <div class="management-actions">
+                <button type="submit" class="btn-primary">Create Counselor</button>
+              </div>
+            </form>
+            <p id="counselorFormMessage" class="message" aria-live="polite"></p>
+          </div>
+
+          <div class="import-block">
+            <h4>Existing Counselors</h4>
+            <div id="counselorList"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="counselor-management.js"></script>
+  <script type="module" src="layouts.js"></script>
+</body>
+</html>
