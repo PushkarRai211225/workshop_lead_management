@@ -83,7 +83,8 @@ function normalizeLeadFields(leads) {
 
     lead.dialed = lead.dialed || "No";
     lead.callStatus = lead.callStatus || "CNC";
-    lead.wsStatus = lead.wsStatus || "Not Interested";
+    // Missing wsStatus should not imply the lead is lost.
+    lead.wsStatus = lead.wsStatus || "Interested";
     lead.whatsappInvite = lead.whatsappInvite || "No";
     lead.counselor = lead.counselor || "Unassigned";
 

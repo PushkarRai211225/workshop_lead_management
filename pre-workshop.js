@@ -136,9 +136,13 @@ function setMessage(element, text, isError = true) {
 }
 
 function getDefaultWsStatus(lead) {
-  return lead.status === "Interested" || lead.status === "Converted"
-    ? "Interested"
-    : "Not Interested";
+  const status = String(lead?.status || "").trim();
+  if (status === "Interested" || status === "Converted") {
+    return "Interested";
+  }
+
+  // New/unspecified leads should not be marked lost by default.
+  return "Interested";
 }
 
 function normalizeYesNo(value, fallback = "No") {
@@ -543,7 +547,7 @@ function buildLeadFromImportRow(row, id) {
     createdAt: normalizeCreatedAt(pickValue(row, ["createdat", "leadimportdate", "date"])),
     dialed: normalizeYesNo(pickValue(row, ["dialed"]), "No"),
     callStatus: String(pickValue(row, ["callstatus"])) || "CNC",
-    wsStatus: String(pickValue(row, ["wsstatus", "workshopstatus"])) || "Not Interested",
+    wsStatus: String(pickValue(row, ["wsstatus", "workshopstatus"])) || "Interested",
     whatsappInvite: normalizeYesNo(
       pickValue(row, ["whatsappinvite", "whatsappinvitationsent", "whatsapp"]),
       "No"
