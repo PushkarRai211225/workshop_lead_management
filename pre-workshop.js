@@ -24,6 +24,32 @@ const allocationMessage = document.getElementById("allocationMessage");
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
 const isAdmin = session?.role === "admin";
 
+function extractCounselorName(record) {
+  return String(
+    record?.name
+      ?? record?.counselorName
+      ?? record?.fullName
+      ?? record?.displayName
+      ?? ""
+  ).trim();
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+
+    return { response, json: response.ok ? await response.json() : null };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function isCounselorSession() {
   return session?.role === "counselor";
 }
@@ -208,7 +234,7 @@ async function getCounselorNamesForAllocation() {
       if (Array.isArray(localCounselors) && localCounselors.length) {
         return [...new Set(
           localCounselors
-            .map((item) => String(item?.name || "").trim())
+            .map((item) => extractCounselorName(item))
             .filter(Boolean)
         )];
       }
@@ -218,23 +244,23 @@ async function getCounselorNamesForAllocation() {
   }
 
   try {
-    const response = await fetch("/api/state", {
+    const { response, json } = await fetchJsonWithTimeout("/api/state", {
       method: "GET",
       headers: { Accept: "application/json" }
-    });
+    }, 4000);
 
     if (!response.ok) {
       return [];
     }
 
-    const payload = await response.json();
+    const payload = json;
     const counselors = Array.isArray(payload?.counselors) ? payload.counselors : [];
 
     localStorage.setItem(COUNSELORS_KEY, JSON.stringify(counselors));
 
     return [...new Set(
       counselors
-        .map((item) => String(item?.name || "").trim())
+        .map((item) => extractCounselorName(item))
         .filter(Boolean)
     )];
   } catch {
@@ -1102,7 +1128,7 @@ function closeActivityStatusModal() {
   modalLeadId = null;
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+function initPreWorkshopPage() {
   const modal = document.getElementById("activityStatusModal");
   if (modal) {
     document.getElementById("closeModalBtn").onclick = closeActivityStatusModal;
@@ -1125,7 +1151,13 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   setupAdminPanel();
-});
+}
+
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", initPreWorkshopPage);
+} else {
+  initPreWorkshopPage();
+}
 
 function renderAll() {
   const allLeads = getAllLeads();

@@ -2,6 +2,16 @@ const LEADS_KEY = "dvWorkshopLeads";
 const COUNSELORS_KEY = "dvCounselors";
 const ALLOCATION_KEY = "dvCounselorAllocation";
 
+function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch(url, {
+    ...options,
+    signal: controller.signal
+  }).finally(() => clearTimeout(timeoutId));
+}
+
 function safeParseArray(value) {
   if (!value) {
     return [];
@@ -21,12 +31,12 @@ export async function bootstrapLocalState() {
   const localAllocation = safeParseArray(localStorage.getItem(ALLOCATION_KEY));
 
   try {
-    const response = await fetch("/api/state", {
+    const response = await fetchWithTimeout("/api/state", {
       method: "GET",
       headers: {
         Accept: "application/json"
       }
-    });
+    }, 4000);
 
     if (!response.ok) {
       return;
@@ -51,7 +61,7 @@ export async function bootstrapLocalState() {
       || (!serverAllocation.length && mergedAllocation.length);
 
     if (shouldBackfillServer) {
-      await fetch("/api/state", {
+      await fetchWithTimeout("/api/state", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -61,7 +71,7 @@ export async function bootstrapLocalState() {
           counselors: mergedCounselors,
           allocation: mergedAllocation
         })
-      });
+      }, 4000);
     }
   } catch {
     // Keep local cache when API is temporarily unavailable.
@@ -74,14 +84,17 @@ export async function syncStateFromLocal() {
     const counselors = safeParseArray(localStorage.getItem(COUNSELORS_KEY));
     const allocation = safeParseArray(localStorage.getItem(ALLOCATION_KEY));
 
-    await fetch("/api/state", {
+    const response = await fetchWithTimeout("/api/state", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ leads, counselors, allocation })
-    });
+    }, 4000);
+
+    return { ok: response.ok };
   } catch {
     // Best-effort sync; local state remains intact.
+    return { ok: false };
   }
 }
