@@ -72,15 +72,21 @@ function getLeads() {
 }
 
 function buildKpis(leads) {
-  const total = leads.length;
-  const newLeads = leads.filter((lead) => lead.status === "New").length;
-  const interested = leads.filter((lead) => lead.status === "Interested").length;
-  const converted = leads.filter((lead) => lead.status === "Converted").length;
+  const totals = leads.reduce(
+    (accumulator, lead) => {
+      accumulator.total += 1;
+      if (lead.status === "New") accumulator.newLeads += 1;
+      if (lead.status === "Interested") accumulator.interested += 1;
+      if (lead.status === "Converted") accumulator.converted += 1;
+      return accumulator;
+    },
+    { total: 0, newLeads: 0, interested: 0, converted: 0 }
+  );
 
-  overallLeadsEl.textContent = total;
-  newLeadsEl.textContent = newLeads;
-  interestedLeadsEl.textContent = interested;
-  convertedLeadsEl.textContent = converted;
+  overallLeadsEl.textContent = totals.total;
+  newLeadsEl.textContent = totals.newLeads;
+  interestedLeadsEl.textContent = totals.interested;
+  convertedLeadsEl.textContent = totals.converted;
 }
 
 function toDateKey(date) {
@@ -226,14 +232,20 @@ function filterLeadsByTimeline(leads, range) {
 let trendChart;
 let workshopPieChart;
 
-function renderCharts(leads) {
+function renderCharts(leads, range) {
   const trendCanvas = document.getElementById("newLeadsTrendChart");
   const pieCanvas = document.getElementById("workshopBreakdownChart");
 
-  const range = getTimelineRange(getLeads());
   const trendDates = range.start && range.end ? getDateSequence(range.start, range.end) : [];
+  const trendCountMap = new Map();
+  leads.forEach((lead) => {
+    if (lead.status === "New") {
+      trendCountMap.set(lead.createdAt, (trendCountMap.get(lead.createdAt) || 0) + 1);
+    }
+  });
+
   const trendCounts = trendDates.map((day) => {
-    return leads.filter((lead) => lead.createdAt === day && lead.status === "New").length;
+    return trendCountMap.get(day) || 0;
   });
 
   const workshopMap = leads.reduce((acc, lead) => {
@@ -369,7 +381,7 @@ function hydrate(leads) {
 
   activeRangeLabel.textContent = `${range.label} | Leads in range: ${filteredLeads.length}`;
   buildKpis(filteredLeads);
-  renderCharts(filteredLeads);
+  renderCharts(filteredLeads, range);
   renderInterestedPanel(filteredLeads);
 }
 

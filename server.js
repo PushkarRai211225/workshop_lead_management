@@ -22,6 +22,35 @@ app.use(express.static(ROOT_DIR));
 
 let stateCollection;
 let mongoInitPromise;
+let cachedStateDoc = null;
+
+function normalizeStateDoc(state = {}) {
+  return {
+    _id: STATE_DOC_ID,
+    leads: Array.isArray(state.leads) ? state.leads : [],
+    counselors: Array.isArray(state.counselors) ? state.counselors : [],
+    allocation: Array.isArray(state.allocation) ? state.allocation : [],
+    tasks: Array.isArray(state.tasks) ? state.tasks : [],
+    createdAt: state.createdAt || new Date().toISOString(),
+    updatedAt: state.updatedAt || new Date().toISOString()
+  };
+}
+
+function cacheStateDoc(state) {
+  cachedStateDoc = normalizeStateDoc(state);
+  return cachedStateDoc;
+}
+
+function buildStateResponse(state) {
+  const normalized = normalizeStateDoc(state);
+  return {
+    leads: normalized.leads,
+    counselors: normalized.counselors,
+    allocation: normalized.allocation,
+    tasks: normalized.tasks,
+    updatedAt: normalized.updatedAt || null
+  };
+}
 
 async function initMongo() {
   if (stateCollection) {
@@ -73,12 +102,16 @@ function sanitizeState(payload = {}) {
 }
 
 async function getStateDoc() {
-  const existing = await stateCollection.findOne({ _id: STATE_DOC_ID });
-  if (existing) {
-    return existing;
+  if (cachedStateDoc) {
+    return cachedStateDoc;
   }
 
-  const initial = {
+  const existing = await stateCollection.findOne({ _id: STATE_DOC_ID });
+  if (existing) {
+    return cacheStateDoc(existing);
+  }
+
+  const initial = cacheStateDoc({
     _id: STATE_DOC_ID,
     leads: [],
     counselors: [],
@@ -86,7 +119,7 @@ async function getStateDoc() {
     tasks: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
-  };
+  });
 
   await stateCollection.insertOne(initial);
   return initial;
@@ -95,13 +128,7 @@ async function getStateDoc() {
 app.get("/api/state", async (_req, res) => {
   try {
     const state = await getStateDoc();
-    res.json({
-      leads: Array.isArray(state.leads) ? state.leads : [],
-      counselors: Array.isArray(state.counselors) ? state.counselors : [],
-      allocation: Array.isArray(state.allocation) ? state.allocation : [],
-      tasks: Array.isArray(state.tasks) ? state.tasks : [],
-      updatedAt: state.updatedAt || null
-    });
+    res.json(buildStateResponse(state));
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch state", details: error.message });
   }
@@ -114,28 +141,29 @@ app.put("/api/state", async (req, res) => {
       return res.status(400).json({ message: "No valid state fields provided." });
     }
 
+    const now = new Date().toISOString();
+    const currentState = await getStateDoc();
+    const nextState = cacheStateDoc({
+      ...currentState,
+      ...sanitized,
+      updatedAt: now
+    });
+
     await stateCollection.updateOne(
       { _id: STATE_DOC_ID },
       {
         $set: {
           ...sanitized,
-          updatedAt: new Date().toISOString()
+          updatedAt: now
         },
         $setOnInsert: {
-          createdAt: new Date().toISOString()
+          createdAt: now
         }
       },
       { upsert: true }
     );
 
-    const state = await getStateDoc();
-    return res.json({
-      leads: Array.isArray(state.leads) ? state.leads : [],
-      counselors: Array.isArray(state.counselors) ? state.counselors : [],
-      allocation: Array.isArray(state.allocation) ? state.allocation : [],
-      tasks: Array.isArray(state.tasks) ? state.tasks : [],
-      updatedAt: state.updatedAt || null
-    });
+    return res.json(buildStateResponse(nextState));
   } catch (error) {
     return res.status(500).json({ message: "Failed to update state", details: error.message });
   }
@@ -156,12 +184,19 @@ app.put("/api/leads", async (req, res) => {
   }
 
   try {
+    const currentState = await getStateDoc();
+    const nextState = cacheStateDoc({
+      ...currentState,
+      leads: req.body,
+      updatedAt: new Date().toISOString()
+    });
+
     await stateCollection.updateOne(
       { _id: STATE_DOC_ID },
       {
         $set: {
           leads: req.body,
-          updatedAt: new Date().toISOString()
+          updatedAt: nextState.updatedAt
         },
         $setOnInsert: {
           counselors: [],
@@ -193,12 +228,19 @@ app.put("/api/counselors", async (req, res) => {
   }
 
   try {
+    const currentState = await getStateDoc();
+    const nextState = cacheStateDoc({
+      ...currentState,
+      counselors: req.body,
+      updatedAt: new Date().toISOString()
+    });
+
     await stateCollection.updateOne(
       { _id: STATE_DOC_ID },
       {
         $set: {
           counselors: req.body,
-          updatedAt: new Date().toISOString()
+          updatedAt: nextState.updatedAt
         },
         $setOnInsert: {
           leads: [],
@@ -229,12 +271,19 @@ app.put("/api/allocation", async (req, res) => {
   }
 
   try {
+    const currentState = await getStateDoc();
+    const nextState = cacheStateDoc({
+      ...currentState,
+      allocation: req.body,
+      updatedAt: new Date().toISOString()
+    });
+
     await stateCollection.updateOne(
       { _id: STATE_DOC_ID },
       {
         $set: {
           allocation: req.body,
-          updatedAt: new Date().toISOString()
+          updatedAt: nextState.updatedAt
         },
         $setOnInsert: {
           leads: [],
