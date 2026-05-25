@@ -1,5 +1,5 @@
 import { runPageCleanup } from "./page-runtime.js";
-import { bootstrapLocalState, getSession, getStateField, logout, refreshSession } from "./state-sync.js";
+import { bootstrapLocalState, getSession, getStateField, logout, refreshSession, refreshState } from "./state-sync.js";
 
 let currentRoute = window.location.pathname.split("/").pop() || "dashboard.html";
 let activeSession = null;
@@ -267,6 +267,11 @@ async function navigateToRoute(href, options = {}) {
     }
 
     await ensureRouteAssets(targetDocument, url.href);
+    if (navigationToken !== activeNavigationToken) {
+      return;
+    }
+
+    await refreshState();
     if (navigationToken !== activeNavigationToken) {
       return;
     }

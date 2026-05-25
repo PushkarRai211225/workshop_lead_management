@@ -10,6 +10,7 @@ let currentSession = null;
 let bootstrapPromise = null;
 let pendingStateUpdate = Promise.resolve();
 const preferenceCache = new Map();
+let lastStateRefreshAt = 0;
 
 function cloneValue(value) {
   if (typeof structuredClone === "function") {
@@ -49,6 +50,7 @@ async function fetchJson(url, options = {}, timeoutMs = 10000) {
 
 function setCurrentState(snapshot) {
   currentState = normalizeState(snapshot);
+  lastStateRefreshAt = Date.now();
   return getStateSnapshot();
 }
 
@@ -214,8 +216,10 @@ export async function logout() {
 export async function bootstrapLocalState() {
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
+      const shouldRefreshState = !lastStateRefreshAt || (Date.now() - lastStateRefreshAt) > 1500;
+
       await Promise.all([
-        refreshState(),
+        shouldRefreshState ? refreshState() : Promise.resolve(getStateSnapshot()),
         refreshSession().catch(() => null)
       ]);
     })().finally(() => {
