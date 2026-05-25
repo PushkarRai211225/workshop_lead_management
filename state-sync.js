@@ -90,6 +90,87 @@ function markBootstrapSynced() {
   localStorage.setItem(BOOTSTRAP_SYNCED_AT_KEY, String(Date.now()));
 }
 
+async function fetchServerState(timeoutMs = 4000) {
+  const response = await fetchWithTimeout("/api/state", {
+    method: "GET",
+    headers: {
+      Accept: "application/json"
+    }
+  }, timeoutMs);
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+  const snapshot = normalizeSnapshot(payload);
+
+  return {
+    payload,
+    snapshot,
+    updatedAt: Number(new Date(payload.updatedAt || 0).getTime()) || 0,
+    clearedAt: Number(new Date(payload.clearedAt || 0).getTime()) || 0
+  };
+}
+
+async function refreshBootstrapState(localSnapshot, allowBackfill = false) {
+  const serverState = await fetchServerState();
+  if (!serverState) {
+    return;
+  }
+
+  const serverLeads = serverState.snapshot.leads;
+  const serverCounselors = serverState.snapshot.counselors;
+  const serverAllocation = serverState.snapshot.allocation;
+  const serverTasks = serverState.snapshot.tasks;
+  const lastLocalMutationAt = getLastStateMutatedAt();
+
+  const serverLooksFresh =
+    !serverLeads.length
+    && !serverCounselors.length
+    && !serverAllocation.length
+    && !serverTasks.length;
+
+  const preferLocalSnapshot = !serverState.clearedAt && (
+    serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverState.updatedAt)
+  );
+
+  const mergedLeads = preferLocalSnapshot && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
+  const mergedCounselors = preferLocalSnapshot && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
+  const mergedAllocation = preferLocalSnapshot && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
+  const mergedTasks = preferLocalSnapshot && localSnapshot.tasks.length ? localSnapshot.tasks : serverTasks;
+
+  writeStateSnapshot({
+    leads: mergedLeads,
+    counselors: mergedCounselors,
+    allocation: mergedAllocation,
+    tasks: mergedTasks
+  });
+  markBootstrapSynced();
+
+  const shouldBackfillServer = allowBackfill && (serverLooksFresh || (!serverTasks.length && localSnapshot.tasks.length)) && (
+    mergedLeads.length
+    || mergedCounselors.length
+    || mergedAllocation.length
+    || mergedTasks.length
+  );
+
+  if (shouldBackfillServer) {
+    void fetchWithTimeout("/api/state", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        leads: mergedLeads,
+        counselors: mergedCounselors,
+        allocation: mergedAllocation,
+        tasks: mergedTasks
+      })
+    }, 4000);
+  }
+}
+
 function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -141,122 +222,18 @@ export async function bootstrapLocalState() {
 
   if (localHasState) {
     if (Date.now() - lastBootstrapAt >= BOOTSTRAP_TTL_MS) {
-      void (async () => {
-        try {
-          const response = await fetchWithTimeout("/api/state", {
-            method: "GET",
-            headers: {
-              Accept: "application/json"
-            }
-          }, 4000);
-
-          if (!response.ok) {
-            return;
-          }
-
-          const payload = await response.json();
-          const serverLeads = Array.isArray(payload.leads) ? payload.leads : [];
-          const serverCounselors = Array.isArray(payload.counselors) ? payload.counselors : [];
-          const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
-          const serverTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-          const serverUpdatedAt = Number(new Date(payload.updatedAt || 0).getTime()) || 0;
-          const serverClearedAt = Number(new Date(payload.clearedAt || 0).getTime()) || 0;
-          const lastLocalMutationAt = getLastStateMutatedAt();
-
-          const serverLooksFresh =
-            !serverLeads.length
-            && !serverCounselors.length
-            && !serverAllocation.length
-            && !serverTasks.length;
-
-          const preferLocalSnapshot = !serverClearedAt && (serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt));
-
-          const mergedLeads = preferLocalSnapshot && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
-          const mergedCounselors = preferLocalSnapshot && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
-          const mergedAllocation = preferLocalSnapshot && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
-          const mergedTasks = preferLocalSnapshot && localSnapshot.tasks.length ? localSnapshot.tasks : serverTasks;
-
-          writeStateSnapshot({
-            leads: mergedLeads,
-            counselors: mergedCounselors,
-            allocation: mergedAllocation,
-            tasks: mergedTasks
-          });
-          markBootstrapSynced();
-        } catch {
-          // Keep local cache when API is temporarily unavailable.
-        }
-      })();
+      try {
+        await refreshBootstrapState(localSnapshot, false);
+      } catch {
+        // Keep local cache when API is temporarily unavailable.
+      }
     }
 
     return;
   }
 
   try {
-    const response = await fetchWithTimeout("/api/state", {
-      method: "GET",
-      headers: {
-        Accept: "application/json"
-      }
-    }, 4000);
-
-    if (!response.ok) {
-      return;
-    }
-
-    const payload = await response.json();
-    const serverLeads = Array.isArray(payload.leads) ? payload.leads : [];
-    const serverCounselors = Array.isArray(payload.counselors) ? payload.counselors : [];
-    const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
-    const serverTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-    const serverUpdatedAt = Number(new Date(payload.updatedAt || 0).getTime()) || 0;
-    const serverClearedAt = Number(new Date(payload.clearedAt || 0).getTime()) || 0;
-    const lastLocalMutationAt = getLastStateMutatedAt();
-
-    const serverLooksFresh =
-      !serverLeads.length
-      && !serverCounselors.length
-      && !serverAllocation.length
-      && !serverTasks.length;
-
-    const preferLocalSnapshot = !serverClearedAt && (serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt));
-
-    // Prefer server state whenever it exists, even when arrays are empty.
-    // Only fall back to local cache when the server is completely fresh.
-    const mergedLeads = preferLocalSnapshot && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
-    const mergedCounselors = preferLocalSnapshot && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
-    const mergedAllocation = preferLocalSnapshot && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
-    const mergedTasks = preferLocalSnapshot && localSnapshot.tasks.length ? localSnapshot.tasks : serverTasks;
-
-    writeStateSnapshot({
-      leads: mergedLeads,
-      counselors: mergedCounselors,
-      allocation: mergedAllocation,
-      tasks: mergedTasks
-    });
-    markBootstrapSynced();
-
-    const shouldBackfillServer = (serverLooksFresh || (!serverTasks.length && localSnapshot.tasks.length)) && (
-      mergedLeads.length
-      || mergedCounselors.length
-      || mergedAllocation.length
-      || mergedTasks.length
-    );
-
-    if (shouldBackfillServer) {
-      void fetchWithTimeout("/api/state", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          leads: mergedLeads,
-          counselors: mergedCounselors,
-          allocation: mergedAllocation,
-          tasks: mergedTasks
-        })
-      }, 4000);
-    }
+    await refreshBootstrapState(localSnapshot, true);
   } catch {
     // Keep local cache when API is temporarily unavailable.
   }

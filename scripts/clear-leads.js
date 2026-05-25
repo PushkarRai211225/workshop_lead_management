@@ -18,6 +18,7 @@ async function run() {
 
     const db = client.db(MONGODB_DB_NAME);
     const collection = db.collection(MONGODB_STATE_COLLECTION);
+    const now = new Date().toISOString();
 
     const result = await collection.updateOne(
       { _id: "global" },
@@ -26,11 +27,12 @@ async function run() {
           leads: [],
           allocation: [],
           tasks: [],
-          updatedAt: new Date().toISOString()
+          updatedAt: now,
+          clearedAt: now
         },
         $setOnInsert: {
           counselors: [],
-          createdAt: new Date().toISOString()
+          createdAt: now
         }
       },
       { upsert: true }
