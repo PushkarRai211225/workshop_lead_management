@@ -1,4 +1,4 @@
-import { bootstrapLocalState, loadPersistedValue, markStateMutated, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, markStateMutated, savePersistedValue, syncStateFromLocal, syncStateFromLocalAndVerify } from "./state-sync.js";
 import { createTask, TASK_CATEGORY } from "./task-service.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
@@ -374,18 +374,25 @@ function saveAllLeads(leads) {
   void syncStateFromLocal();
 }
 
-function deleteWholeLeadDataset() {
+async function deleteWholeLeadDataset() {
   const confirmed = window.confirm("Delete the entire lead dataset? This cannot be undone.");
   if (!confirmed) {
     return;
   }
 
   saveAllLeads([]);
+
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMessage(cleanupMessage, syncResult.message || "Backend confirmation failed after deleting the dataset.", true);
+    return;
+  }
+
   setMessage(cleanupMessage, "Whole lead dataset deleted successfully.", false);
   renderAll();
 }
 
-function deleteImportedFileImport() {
+async function deleteImportedFileImport() {
   const selectedFile = String(deleteImportedFileSelect?.value || "").trim();
   if (!selectedFile) {
     setMessage(cleanupMessage, "Select an imported file to delete.", true);
@@ -408,11 +415,18 @@ function deleteImportedFileImport() {
 
   normalizeLeadFields(retainedLeads);
   saveAllLeads(retainedLeads);
-  setMessage(cleanupMessage, `${removedCount} lead${removedCount === 1 ? "" : "s"} from ${selectedFile} deleted successfully.`, false);
+
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMessage(cleanupMessage, syncResult.message || `Backend confirmation failed after deleting leads from ${selectedFile}.`, true);
+    return;
+  }
+
+  setMessage(cleanupMessage, `${removedCount} lead${removedCount === 1 ? "s" : "s"} from ${selectedFile} deleted successfully.`, false);
   renderAll();
 }
 
-function deleteLostLeads() {
+async function deleteLostLeads() {
   const allLeads = getAllLeads();
   const retainedLeads = allLeads.filter((lead) => !isLostLead(lead));
   const removedCount = allLeads.length - retainedLeads.length;
@@ -429,7 +443,14 @@ function deleteLostLeads() {
 
   normalizeLeadFields(retainedLeads);
   saveAllLeads(retainedLeads);
-  setMessage(cleanupMessage, `${removedCount} lost lead${removedCount === 1 ? "" : "s"} deleted successfully.`, false);
+
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMessage(cleanupMessage, syncResult.message || "Backend confirmation failed after deleting lost leads.", true);
+    return;
+  }
+
+  setMessage(cleanupMessage, `${removedCount} lost lead${removedCount === 1 ? "s" : "s"} deleted successfully.`, false);
   renderAll();
 }
 
@@ -970,7 +991,12 @@ async function handleLeadImport() {
 
   normalizeLeadFields(nextLeads);
   saveAllLeads(nextLeads);
-  await syncStateFromLocal();
+
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMessage(importMessage, syncResult.message || "Backend confirmation failed after import.", true);
+    return;
+  }
 
   updateImportSummary(rows.length, importedRecords.length, failed.length);
 

@@ -1,4 +1,4 @@
-import { bootstrapLocalState, markStateMutated, syncStateFromLocal } from "./state-sync.js";
+import { bootstrapLocalState, markStateMutated, syncStateFromLocal, syncStateFromLocalAndVerify } from "./state-sync.js";
 
 const COUNSELORS_KEY = "dvCounselors";
 const LEADS_KEY = "dvWorkshopLeads";
@@ -194,6 +194,12 @@ async function removeCounselor(counselorId) {
     await saveAllocation(rebalanceAllocation(filteredAllocation));
   }
 
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMessage(syncResult.message || `Backend confirmation failed after removing counselor ${target.name}.`, true);
+    return;
+  }
+
   setMessage(`Counselor ${target.name} removed successfully.`, false);
   renderCounselorList();
 }
@@ -315,6 +321,13 @@ counselorForm.addEventListener("submit", async (event) => {
 
   await saveCounselors(counselors);
   await syncAllocationWithCounselors(counselors);
+
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMessage(syncResult.message || "Backend confirmation failed after saving the counselor.", true);
+    return;
+  }
+
   counselorForm.reset();
 
   // restore default checked state for convenience

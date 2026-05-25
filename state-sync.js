@@ -40,6 +40,21 @@ function writeStateSnapshot(snapshot) {
   localStorage.setItem(TASKS_KEY, JSON.stringify(Array.isArray(snapshot.tasks) ? snapshot.tasks : []));
 }
 
+function normalizeSnapshot(snapshot) {
+  return {
+    leads: Array.isArray(snapshot?.leads) ? snapshot.leads : [],
+    counselors: Array.isArray(snapshot?.counselors) ? snapshot.counselors : [],
+    allocation: Array.isArray(snapshot?.allocation) ? snapshot.allocation : [],
+    tasks: Array.isArray(snapshot?.tasks) ? snapshot.tasks : []
+  };
+}
+
+function snapshotsMatch(left, right) {
+  const normalizedLeft = normalizeSnapshot(left);
+  const normalizedRight = normalizeSnapshot(right);
+  return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
+}
+
 function hasAnyState(snapshot) {
   return Boolean(
     (Array.isArray(snapshot.leads) && snapshot.leads.length)
@@ -280,5 +295,39 @@ export async function syncStateFromLocal() {
   } catch {
     // Best-effort sync; local state remains intact.
     return { ok: false };
+  }
+}
+
+export async function syncStateFromLocalAndVerify(timeoutMs = 4000) {
+  const localSnapshot = readStateSnapshot();
+
+  try {
+    await flushStateSync();
+
+    const response = await fetchWithTimeout("/api/state", {
+      method: "GET",
+      headers: {
+        Accept: "application/json"
+      }
+    }, timeoutMs);
+
+    if (!response.ok) {
+      return { ok: false, message: "Backend verification failed." };
+    }
+
+    const payload = await response.json();
+    const verifiedSnapshot = normalizeSnapshot(payload);
+
+    if (!snapshotsMatch(localSnapshot, verifiedSnapshot)) {
+      return { ok: false, message: "Backend state does not match the saved changes." };
+    }
+
+    markStateSynced();
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error?.message || "Unable to confirm the backend update."
+    };
   }
 }
