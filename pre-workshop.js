@@ -22,6 +22,8 @@ const saveAllocationBtn = document.getElementById("saveAllocationBtn");
 const allocationMessage = document.getElementById("allocationMessage");
 const deleteAllLeadsBtn = document.getElementById("deleteAllLeadsBtn");
 const deleteLostLeadsBtn = document.getElementById("deleteLostLeadsBtn");
+const deleteImportedFileSelect = document.getElementById("deleteImportedFileSelect");
+const deleteImportedFileBtn = document.getElementById("deleteImportedFileBtn");
 const cleanupMessage = document.getElementById("cleanupMessage");
 const taskModal = document.getElementById("taskModal");
 const taskModalTitle = document.getElementById("taskModalTitle");
@@ -250,6 +252,24 @@ function setMessage(element, text, isError = true) {
   element.style.color = isError ? "#b42318" : "#0f766e";
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function getLeadImportSourceFiles(lead) {
+  if (Array.isArray(lead?.importSourceFiles)) {
+    return lead.importSourceFiles.map((name) => String(name || "").trim()).filter(Boolean);
+  }
+
+  const fallback = String(lead?.importSourceFile || "").trim();
+  return fallback ? [fallback] : [];
+}
+
 function persistFilterState() {
   savePersistedValue(FILTER_STORAGE_KEY, filter);
 }
@@ -301,6 +321,12 @@ function normalizeLeadFields(leads) {
     lead.email = (lead.email || "").toLowerCase();
     lead.workshop = lead.workshop || "";
     lead.createdAt = lead.createdAt || toIsoDate();
+    lead.importSourceFiles = getLeadImportSourceFiles(lead);
+    lead.importSourceSheets = Array.isArray(lead.importSourceSheets)
+      ? lead.importSourceSheets.map((name) => String(name || "").trim()).filter(Boolean)
+      : lead.importSourceSheet
+        ? [String(lead.importSourceSheet).trim()].filter(Boolean)
+        : [];
 
     lead.status = lead.status || "New";
     lead.dialed = lead.dialed || "";
@@ -352,6 +378,33 @@ function deleteWholeLeadDataset() {
 
   saveAllLeads([]);
   setMessage(cleanupMessage, "Whole lead dataset deleted successfully.", false);
+  renderAll();
+}
+
+function deleteImportedFileImport() {
+  const selectedFile = String(deleteImportedFileSelect?.value || "").trim();
+  if (!selectedFile) {
+    setMessage(cleanupMessage, "Select an imported file to delete.", true);
+    return;
+  }
+
+  const allLeads = getAllLeads();
+  const retainedLeads = allLeads.filter((lead) => !getLeadImportSourceFiles(lead).includes(selectedFile));
+  const removedCount = allLeads.length - retainedLeads.length;
+
+  if (!removedCount) {
+    setMessage(cleanupMessage, `No leads were tagged with ${selectedFile}.`, false);
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete ${removedCount} lead${removedCount === 1 ? "" : "s"} imported from ${selectedFile}? This cannot be undone.`);
+  if (!confirmed) {
+    return;
+  }
+
+  normalizeLeadFields(retainedLeads);
+  saveAllLeads(retainedLeads);
+  setMessage(cleanupMessage, `${removedCount} lead${removedCount === 1 ? "" : "s"} from ${selectedFile} deleted successfully.`, false);
   renderAll();
 }
 
@@ -712,7 +765,38 @@ function normalizeCreatedAt(value) {
   return toIsoDate();
 }
 
-function buildLeadFromImportRow(row, id, workshopName) {
+function mergeImportedLead(existingLead, importedLead) {
+  const preservedWorkshopHistory = Array.isArray(existingLead.workshopActivityHistory)
+    ? existingLead.workshopActivityHistory
+    : [];
+  const preservedAdmissionHistory = Array.isArray(existingLead.admissionActivityHistory)
+    ? existingLead.admissionActivityHistory
+    : [];
+  const mergedImportSourceFiles = [...new Set([
+    ...getLeadImportSourceFiles(existingLead),
+    ...getLeadImportSourceFiles(importedLead)
+  ])];
+  const mergedImportSourceSheets = [...new Set([
+    ...(Array.isArray(existingLead.importSourceSheets) ? existingLead.importSourceSheets : existingLead.importSourceSheet ? [existingLead.importSourceSheet] : []),
+    ...(Array.isArray(importedLead.importSourceSheets) ? importedLead.importSourceSheets : importedLead.importSourceSheet ? [importedLead.importSourceSheet] : [])
+  ].map((name) => String(name || "").trim()).filter(Boolean))];
+
+  return {
+    ...existingLead,
+    ...importedLead,
+    id: existingLead.id,
+    counselor: existingLead.counselor || importedLead.counselor || "Unassigned",
+    importSourceFiles: mergedImportSourceFiles,
+    importSourceSheets: mergedImportSourceSheets,
+    workshopActivityHistory: preservedWorkshopHistory,
+    admissionActivityHistory: preservedAdmissionHistory,
+    preActivityUpdates: preservedWorkshopHistory.length,
+    postActivityUpdates: preservedAdmissionHistory.length,
+    postStatusUpdated: typeof existingLead.postStatusUpdated === "boolean" ? existingLead.postStatusUpdated : false
+  };
+}
+
+function buildLeadFromImportRow(row, id, workshopName, sourceFileName) {
   const name = String(pickValue(row, ["studentname", "fullname", "leadname", "name"])).trim();
   const email = String(pickValue(row, ["emailaddress", "emailid", "mail", "email"])).trim().toLowerCase();
   const workshop = String(workshopName || "").trim();
@@ -751,31 +835,12 @@ function buildLeadFromImportRow(row, id, workshopName) {
     preActivityUpdates: 0,
     postActivityUpdates: 0,
     workshopActivityHistory: [],
-    admissionActivityHistory: []
+    admissionActivityHistory: [],
+    importSourceFiles: [String(sourceFileName || "").trim()].filter(Boolean),
+    importSourceSheets: [String(row.__workshopName || "").trim()].filter(Boolean)
   };
 
   return { lead };
-}
-
-function mergeImportedLead(existingLead, importedLead) {
-  const preservedWorkshopHistory = Array.isArray(existingLead.workshopActivityHistory)
-    ? existingLead.workshopActivityHistory
-    : [];
-  const preservedAdmissionHistory = Array.isArray(existingLead.admissionActivityHistory)
-    ? existingLead.admissionActivityHistory
-    : [];
-
-  return {
-    ...existingLead,
-    ...importedLead,
-    id: existingLead.id,
-    counselor: existingLead.counselor || importedLead.counselor || "Unassigned",
-    workshopActivityHistory: preservedWorkshopHistory,
-    admissionActivityHistory: preservedAdmissionHistory,
-    preActivityUpdates: preservedWorkshopHistory.length,
-    postActivityUpdates: preservedAdmissionHistory.length,
-    postStatusUpdated: typeof existingLead.postStatusUpdated === "boolean" ? existingLead.postStatusUpdated : false
-  };
 }
 
 async function parseImportFile(file) {
@@ -794,7 +859,8 @@ async function parseImportFile(file) {
 
     return XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false }).map((row) => ({
       ...row,
-      __workshopName: sheetName
+      __workshopName: sheetName,
+      __importSourceFile: file.name
     }));
   });
 }
@@ -856,7 +922,7 @@ async function handleLeadImport() {
   let nextId = Math.max(...nextLeads.map((lead) => Number(lead.id) || 0), 0) + 1;
 
   rows.forEach((row, idx) => {
-    const { lead, error } = buildLeadFromImportRow(row, nextId, row.__workshopName);
+    const { lead, error } = buildLeadFromImportRow(row, nextId, row.__workshopName, row.__importSourceFile);
     if (error) {
       failed.push(`Row ${idx + 2}: ${error}`);
       return;
@@ -1314,6 +1380,16 @@ function renderFilters(leads) {
     renderAll();
   };
 
+
+  if (deleteImportedFileBtn) {
+    deleteImportedFileBtn.onclick = () => {
+      if (!isAdmin) {
+        return;
+      }
+
+      deleteImportedFileImport();
+    };
+  }
   document.getElementById("resetFilters").onclick = () => {
     filter = { ...DEFAULT_FILTER };
     persistFilterState();
@@ -1695,6 +1771,23 @@ function renderAll() {
   const allLeads = getAllLeads();
   normalizeLeadFields(allLeads);
   saveAllLeads(allLeads);
+
+  if (deleteImportedFileSelect) {
+    const importedFileNames = [...new Set(allLeads.flatMap((lead) => getLeadImportSourceFiles(lead)))].sort((left, right) => left.localeCompare(right));
+    const currentValue = deleteImportedFileSelect.value;
+
+    deleteImportedFileSelect.innerHTML = importedFileNames.length
+      ? [`<option value="">Select imported file</option>`, ...importedFileNames.map((fileName) => `<option value="${escapeHtml(fileName)}">${escapeHtml(fileName)}</option>`)].join("")
+      : `<option value="">No imported files found</option>`;
+
+    if (importedFileNames.includes(currentValue)) {
+      deleteImportedFileSelect.value = currentValue;
+    }
+
+    if (deleteImportedFileBtn) {
+      deleteImportedFileBtn.disabled = !importedFileNames.length;
+    }
+  }
 
   const scopedLeads = getScopedLeads(allLeads);
   const preWorkshopLeads = getPreWorkshopLeads(scopedLeads);

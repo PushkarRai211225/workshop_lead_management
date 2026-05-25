@@ -84,6 +84,13 @@
             <button id="deleteAllLeadsBtn" type="button" class="btn-ghost">Delete Whole Lead Dataset</button>
             <button id="deleteLostLeadsBtn" type="button" class="btn-ghost">Delete Lost Leads</button>
           </div>
+          <div class="cleanup-file-actions">
+            <select id="deleteImportedFileSelect" class="cleanup-file-select">
+              <option value="">No imported files found</option>
+            </select>
+            <button id="deleteImportedFileBtn" type="button" class="btn-ghost">Delete File Import</button>
+          </div>
+          <p class="block-help">Deletes every lead tagged with the selected uploaded file.</p>
           <p id="cleanupMessage" class="message" aria-live="polite"></p>
         </div>
       </section>

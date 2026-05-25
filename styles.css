@@ -831,6 +831,17 @@ tbody tr:hover {
   justify-content: flex-start;
 }
 
+.cleanup-file-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.cleanup-file-select {
+  min-width: 0;
+}
+
 .management-grid {
   display: grid;
   grid-template-columns: 420px 1fr;
