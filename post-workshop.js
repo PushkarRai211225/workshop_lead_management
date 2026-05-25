@@ -611,8 +611,13 @@ function updatePostActivity(leadId, updates) {
     ? allLeads[index].workshopActivityHistory.length
     : Number(allLeads[index].preActivityUpdates) || 0;
   if (!workshopActivityCount) {
-    setMessage("Complete Workshop Calling first before updating Admission Calling.", true);
-    return false;
+    const confirmed = window.confirm(
+      "The lead has not been called for Workshop Calling. Do you still want to update the details?"
+    );
+
+    if (!confirmed) {
+      return false;
+    }
   }
 
   const admissionHistory = Array.isArray(allLeads[index].admissionActivityHistory)
