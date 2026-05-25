@@ -68,6 +68,14 @@ function hasAnyState(snapshot) {
   );
 }
 
+function hasSharedWorkState(snapshot) {
+  return Boolean(
+    (Array.isArray(snapshot.leads) && snapshot.leads.length)
+    || (Array.isArray(snapshot.allocation) && snapshot.allocation.length)
+    || (Array.isArray(snapshot.tasks) && snapshot.tasks.length)
+  );
+}
+
 function markStateSynced() {
   localStorage.setItem(STATE_SYNCED_AT_KEY, String(Date.now()));
 }
@@ -218,9 +226,10 @@ export function savePersistedValue(key, value) {
 export async function bootstrapLocalState() {
   const localSnapshot = readStateSnapshot();
   const localHasState = hasAnyState(localSnapshot);
+  const localHasSharedWorkState = hasSharedWorkState(localSnapshot);
   const lastBootstrapAt = getLastBootstrapAt();
 
-  if (localHasState) {
+  if (localHasState && localHasSharedWorkState) {
     if (Date.now() - lastBootstrapAt >= BOOTSTRAP_TTL_MS) {
       try {
         await refreshBootstrapState(localSnapshot, false);
