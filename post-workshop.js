@@ -156,7 +156,9 @@ function getAllLeads() {
 }
 
 function saveAllLeads(leads) {
-  void persistLeads(leads);
+  persistLeads(leads).catch((err) => {
+    console.error("[post-workshop] Failed to persist leads to server:", err);
+  });
 }
 
 function isLostLead(lead) {

@@ -45,6 +45,8 @@ let sessionCollection;
 let preferenceCollection;
 let mongoInitPromise;
 let cachedStateDoc = null;
+let cachedStateDocAt = 0;
+const STATE_CACHE_TTL_MS = 10000; // Re-read from Mongo after 10 s so stale instances pick up writes from other instances
 
 function parseCookies(headerValue = "") {
   return headerValue
@@ -142,6 +144,7 @@ function normalizeStateDoc(state = {}) {
 
 function cacheStateDoc(state) {
   cachedStateDoc = normalizeStateDoc(state);
+  cachedStateDocAt = Date.now();
   return cachedStateDoc;
 }
 
@@ -209,7 +212,10 @@ function sanitizeState(payload = {}) {
 }
 
 async function getStateDoc() {
-  if (cachedStateDoc) {
+  // Return the in-memory cache only when it is still fresh.
+  // This ensures that writes from other server instances (e.g. on Vercel) are picked up
+  // within STATE_CACHE_TTL_MS without requiring a full process restart.
+  if (cachedStateDoc && (Date.now() - cachedStateDocAt) < STATE_CACHE_TTL_MS) {
     return cachedStateDoc;
   }
 

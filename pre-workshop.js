@@ -391,7 +391,9 @@ function getAllLeads() {
 }
 
 function saveAllLeads(leads) {
-  void persistLeads(leads);
+  persistLeads(leads).catch((err) => {
+    console.error("[pre-workshop] Failed to persist leads to server:", err);
+  });
 }
 
 async function deleteWholeLeadDataset() {

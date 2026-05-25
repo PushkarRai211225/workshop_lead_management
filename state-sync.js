@@ -120,6 +120,11 @@ export async function updateStateFields(fields) {
     return { ok: false, message: "No valid state fields provided." };
   }
 
+  // Apply optimistically so subsequent reads and subscribers see the change immediately,
+  // without waiting for the server round-trip. This eliminates the delay between a
+  // counselor saving an activity and the table reflecting the update.
+  setCurrentState({ ...currentState, ...nextFields });
+
   pendingStateUpdate = pendingStateUpdate.then(async () => {
     const { response, payload } = await fetchJson("/api/state", {
       method: "PUT",
@@ -131,15 +136,18 @@ export async function updateStateFields(fields) {
     });
 
     if (!response.ok) {
+      // Correct any wrong optimistic state by fetching the authoritative server state.
+      void refreshState().catch(() => undefined);
       return { ok: false, message: payload?.message || "Failed to update state." };
     }
 
     setCurrentState(payload);
     return { ok: true, payload: getStateSnapshot() };
-  }).catch((error) => ({
-    ok: false,
-    message: error?.message || "Failed to update state."
-  }));
+  }).catch((error) => {
+    // On network failure refresh to restore correct server state.
+    void refreshState().catch(() => undefined);
+    return { ok: false, message: error?.message || "Failed to update state." };
+  });
 
   return pendingStateUpdate;
 }
@@ -310,14 +318,68 @@ export async function saveTasks(tasks) {
   return updateStateFields({ tasks });
 }
 
-export function startStatePolling(onRefresh, intervalMs = 5000) {
+export function startStatePolling(onRefresh, intervalMs = 15000) {
   if (typeof onRefresh !== "function") {
     return () => undefined;
   }
 
   stateSubscribers.add(onRefresh);
 
+  let pollTimer = null;
+  let activePoll = false;
+  let destroyed = false;
+
+  async function doPoll() {
+    if (destroyed || activePoll) {
+      return;
+    }
+    activePoll = true;
+    try {
+      await refreshState();
+    } catch (_e) {
+      // Ignore transient network errors — the next poll or navigation will recover.
+    } finally {
+      activePoll = false;
+    }
+  }
+
+  function schedulePoll() {
+    if (destroyed) {
+      return;
+    }
+    pollTimer = setTimeout(() => {
+      if (document.visibilityState !== "hidden") {
+        void doPoll();
+      }
+      schedulePoll();
+    }, intervalMs);
+  }
+
+  function handleVisibilityChange() {
+    if (destroyed || document.visibilityState !== "visible") {
+      return;
+    }
+    // Immediately refresh when the user tabs back so they always see current data.
+    clearTimeout(pollTimer);
+    doPoll().finally(() => {
+      if (!destroyed) {
+        schedulePoll();
+      }
+    });
+  }
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+  }
+
+  schedulePoll();
+
   return () => {
+    destroyed = true;
     stateSubscribers.delete(onRefresh);
+    clearTimeout(pollTimer);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }
   };
 }
