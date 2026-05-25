@@ -3,6 +3,7 @@ const COUNSELORS_KEY = "dvCounselors";
 const ALLOCATION_KEY = "dvCounselorAllocation";
 const TASKS_KEY = "dvWorkshopTasks";
 const STATE_SYNCED_AT_KEY = "dvWorkshopStateSyncedAt";
+const STATE_MUTATED_AT_KEY = "dvWorkshopStateMutatedAt";
 const BOOTSTRAP_SYNCED_AT_KEY = "dvWorkshopBootstrapSyncedAt";
 const BOOTSTRAP_TTL_MS = 60000;
 
@@ -50,6 +51,15 @@ function hasAnyState(snapshot) {
 
 function markStateSynced() {
   localStorage.setItem(STATE_SYNCED_AT_KEY, String(Date.now()));
+}
+
+function getLastStateMutatedAt() {
+  const value = Number(localStorage.getItem(STATE_MUTATED_AT_KEY) || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+export function markStateMutated() {
+  localStorage.setItem(STATE_MUTATED_AT_KEY, String(Date.now()));
 }
 
 function getLastBootstrapAt() {
@@ -130,6 +140,8 @@ export async function bootstrapLocalState() {
           const serverCounselors = Array.isArray(payload.counselors) ? payload.counselors : [];
           const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
           const serverTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+          const serverUpdatedAt = Number(new Date(payload.updatedAt || 0).getTime()) || 0;
+          const lastLocalMutationAt = getLastStateMutatedAt();
 
           const serverLooksFresh =
             !serverLeads.length
@@ -137,10 +149,12 @@ export async function bootstrapLocalState() {
             && !serverAllocation.length
             && !serverTasks.length;
 
-          const mergedLeads = serverLooksFresh && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
-          const mergedCounselors = serverLooksFresh && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
-          const mergedAllocation = serverLooksFresh && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
-          const mergedTasks = serverTasks.length ? serverTasks : localSnapshot.tasks;
+          const preferLocalSnapshot = serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt);
+
+          const mergedLeads = preferLocalSnapshot && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
+          const mergedCounselors = preferLocalSnapshot && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
+          const mergedAllocation = preferLocalSnapshot && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
+          const mergedTasks = preferLocalSnapshot && localSnapshot.tasks.length ? localSnapshot.tasks : serverTasks;
 
           writeStateSnapshot({
             leads: mergedLeads,
@@ -175,6 +189,8 @@ export async function bootstrapLocalState() {
     const serverCounselors = Array.isArray(payload.counselors) ? payload.counselors : [];
     const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
     const serverTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const serverUpdatedAt = Number(new Date(payload.updatedAt || 0).getTime()) || 0;
+    const lastLocalMutationAt = getLastStateMutatedAt();
 
     const serverLooksFresh =
       !serverLeads.length
@@ -182,12 +198,14 @@ export async function bootstrapLocalState() {
       && !serverAllocation.length
       && !serverTasks.length;
 
+    const preferLocalSnapshot = serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt);
+
     // Prefer server state whenever it exists, even when arrays are empty.
     // Only fall back to local cache when the server is completely fresh.
-    const mergedLeads = serverLooksFresh && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
-    const mergedCounselors = serverLooksFresh && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
-    const mergedAllocation = serverLooksFresh && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
-    const mergedTasks = serverTasks.length ? serverTasks : localSnapshot.tasks;
+    const mergedLeads = preferLocalSnapshot && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
+    const mergedCounselors = preferLocalSnapshot && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
+    const mergedAllocation = preferLocalSnapshot && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
+    const mergedTasks = preferLocalSnapshot && localSnapshot.tasks.length ? localSnapshot.tasks : serverTasks;
 
     writeStateSnapshot({
       leads: mergedLeads,

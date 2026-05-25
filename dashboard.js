@@ -75,9 +75,10 @@ function buildKpis(leads) {
   const totals = leads.reduce(
     (accumulator, lead) => {
       accumulator.total += 1;
-      if (lead.status === "New") accumulator.newLeads += 1;
-      if (lead.status === "Interested") accumulator.interested += 1;
-      if (lead.status === "Converted") accumulator.converted += 1;
+      const status = getLeadStatus(lead);
+      if (status === "New") accumulator.newLeads += 1;
+      if (status === "Interested") accumulator.interested += 1;
+      if (status === "Converted") accumulator.converted += 1;
       return accumulator;
     },
     { total: 0, newLeads: 0, interested: 0, converted: 0 }
@@ -94,6 +95,15 @@ function toDateKey(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getLeadStatus(lead) {
+  const status = String(lead?.status || "").trim();
+  if (!status || status.toLowerCase() === "select") {
+    return "New";
+  }
+
+  return status;
 }
 
 function parseDateKey(dateKey) {
@@ -239,7 +249,7 @@ function renderCharts(leads, range) {
   const trendDates = range.start && range.end ? getDateSequence(range.start, range.end) : [];
   const trendCountMap = new Map();
   leads.forEach((lead) => {
-    if (lead.status === "New") {
+    if (getLeadStatus(lead) === "New") {
       trendCountMap.set(lead.createdAt, (trendCountMap.get(lead.createdAt) || 0) + 1);
     }
   });
@@ -331,7 +341,7 @@ function renderCharts(leads, range) {
 }
 
 function renderInterestedPanel(leads) {
-  const interestedLeads = leads.filter((lead) => lead.status === "Interested");
+  const interestedLeads = leads.filter((lead) => getLeadStatus(lead) === "Interested");
 
   if (!interestedLeads.length) {
     interestedWorkshopList.innerHTML = `

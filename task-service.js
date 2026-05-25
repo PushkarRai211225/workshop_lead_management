@@ -1,4 +1,4 @@
-import { syncStateFromLocal } from "./state-sync.js";
+import { markStateMutated, syncStateFromLocal } from "./state-sync.js";
 
 const TASKS_KEY = "dvWorkshopTasks";
 export const TASK_CATEGORY = {
@@ -66,7 +66,11 @@ export function getTaskCategoryLabel(category) {
 }
 
 export async function saveTasks(tasks) {
-  localStorage.setItem(TASKS_KEY, JSON.stringify(tasks.map((task) => normalizeTask(task))));
+  const nextValue = JSON.stringify(tasks.map((task) => normalizeTask(task)));
+  if (localStorage.getItem(TASKS_KEY) !== nextValue) {
+    markStateMutated();
+  }
+  localStorage.setItem(TASKS_KEY, nextValue);
   return syncStateFromLocal();
 }
 

@@ -1,4 +1,4 @@
-import { bootstrapLocalState, loadPersistedValue, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, markStateMutated, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
 import { createTask, TASK_CATEGORY } from "./task-service.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
@@ -328,7 +328,7 @@ function normalizeLeadFields(leads) {
         ? [String(lead.importSourceSheet).trim()].filter(Boolean)
         : [];
 
-    lead.status = lead.status || "New";
+    lead.status = normalizeLeadStatus(lead.status);
     lead.dialed = lead.dialed || "";
     lead.callStatus = lead.callStatus || "";
     lead.wsStatus = lead.wsStatus || "";
@@ -366,7 +366,11 @@ function getAllLeads() {
 }
 
 function saveAllLeads(leads) {
-  localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
+  const nextValue = JSON.stringify(leads);
+  if (localStorage.getItem(LEADS_KEY) !== nextValue) {
+    markStateMutated();
+  }
+  localStorage.setItem(LEADS_KEY, nextValue);
   void syncStateFromLocal();
 }
 
@@ -820,7 +824,7 @@ function buildLeadFromImportRow(row, id, workshopName, sourceFileName) {
     phone: String(pickValue(row, ["phone", "phonenumber", "number", "mobile", "contact"]))
       .trim(),
     workshop,
-    status: String(pickValue(row, ["status"])) || "New",
+    status: normalizeLeadStatus(pickValue(row, ["status"])),
     createdAt: toIsoDate(),
     dialed: "",
     callStatus: "",
@@ -841,6 +845,15 @@ function buildLeadFromImportRow(row, id, workshopName, sourceFileName) {
   };
 
   return { lead };
+}
+
+function normalizeLeadStatus(value) {
+  const status = String(value || "").trim();
+  if (!status || status.toLowerCase() === "select") {
+    return "New";
+  }
+
+  return status;
 }
 
 async function parseImportFile(file) {

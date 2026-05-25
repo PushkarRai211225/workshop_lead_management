@@ -1,4 +1,4 @@
-import { bootstrapLocalState, loadPersistedValue, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, markStateMutated, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
 import { createTask, TASK_CATEGORY } from "./task-service.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
@@ -174,7 +174,11 @@ function getAllLeads() {
 }
 
 function saveAllLeads(leads) {
-  localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
+  const nextValue = JSON.stringify(leads);
+  if (localStorage.getItem(LEADS_KEY) !== nextValue) {
+    markStateMutated();
+  }
+  localStorage.setItem(LEADS_KEY, nextValue);
   void syncStateFromLocal();
 }
 

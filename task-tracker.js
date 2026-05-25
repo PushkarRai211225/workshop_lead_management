@@ -3,8 +3,63 @@ import { deleteTask, getTaskCategoryLabel, getTasksByCategory, TASK_CATEGORY, up
 
 await bootstrapLocalState();
 
+const SESSION_KEY = "dvWorkshopSession";
+const COUNSELORS_KEY = "dvCounselors";
+
 const workshopTaskSection = document.getElementById("workshopTaskSection");
 const admissionTaskSection = document.getElementById("admissionTaskSection");
+
+const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+
+function isCounselorSession() {
+  return session?.role === "counselor";
+}
+
+function getCounselorIdentity() {
+  if (!isCounselorSession()) {
+    return "";
+  }
+
+  const sessionName = String(session?.name || "").trim().toLowerCase();
+  const sessionEmail = String(session?.email || "").trim().toLowerCase();
+  const raw = localStorage.getItem(COUNSELORS_KEY);
+
+  if (!raw) {
+    return sessionName;
+  }
+
+  try {
+    const counselors = JSON.parse(raw);
+    if (!Array.isArray(counselors)) {
+      return sessionName;
+    }
+
+    const match = counselors.find(
+      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+    );
+
+    return String(match?.name || session?.name || "").trim().toLowerCase();
+  } catch {
+    return sessionName;
+  }
+}
+
+function getScopedTasks(tasks) {
+  if (!isCounselorSession()) {
+    return tasks;
+  }
+
+  const counselorName = getCounselorIdentity();
+  if (!counselorName) {
+    return [];
+  }
+
+  return tasks.filter((task) => {
+    const leadCounselor = String(task.leadCounselor || "").trim().toLowerCase();
+    const taskCounselor = String(task.counselor || "").trim().toLowerCase();
+    return leadCounselor === counselorName || taskCounselor === counselorName;
+  });
+}
 
 function formatDate(value) {
   if (!value) {
@@ -146,8 +201,8 @@ function bindTaskActions() {
 }
 
 function renderAll() {
-  const workshopTasks = sortTasks(getTasksByCategory(TASK_CATEGORY.workshop));
-  const admissionTasks = sortTasks(getTasksByCategory(TASK_CATEGORY.admission));
+  const workshopTasks = sortTasks(getScopedTasks(getTasksByCategory(TASK_CATEGORY.workshop)));
+  const admissionTasks = sortTasks(getScopedTasks(getTasksByCategory(TASK_CATEGORY.admission)));
 
   workshopTaskSection.innerHTML = renderTaskTable(workshopTasks, "No workshop tasks yet.");
   admissionTaskSection.innerHTML = renderTaskTable(admissionTasks, "No admission tasks yet.");

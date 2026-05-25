@@ -1,4 +1,4 @@
-import { bootstrapLocalState, syncStateFromLocal } from "./state-sync.js";
+import { bootstrapLocalState, markStateMutated, syncStateFromLocal } from "./state-sync.js";
 
 const COUNSELORS_KEY = "dvCounselors";
 const LEADS_KEY = "dvWorkshopLeads";
@@ -49,7 +49,11 @@ function getCounselors() {
 }
 
 function saveCounselors(counselors) {
-  localStorage.setItem(COUNSELORS_KEY, JSON.stringify(counselors));
+  const nextValue = JSON.stringify(counselors);
+  if (localStorage.getItem(COUNSELORS_KEY) !== nextValue) {
+    markStateMutated();
+  }
+  localStorage.setItem(COUNSELORS_KEY, nextValue);
   return syncStateFromLocal();
 }
 
@@ -68,7 +72,11 @@ function getLeads() {
 }
 
 function saveLeads(leads) {
-  localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
+  const nextValue = JSON.stringify(leads);
+  if (localStorage.getItem(LEADS_KEY) !== nextValue) {
+    markStateMutated();
+  }
+  localStorage.setItem(LEADS_KEY, nextValue);
   return syncStateFromLocal();
 }
 
@@ -87,7 +95,11 @@ function getAllocation() {
 }
 
 function saveAllocation(allocation) {
-  localStorage.setItem(ALLOCATION_KEY, JSON.stringify(allocation));
+  const nextValue = JSON.stringify(allocation);
+  if (localStorage.getItem(ALLOCATION_KEY) !== nextValue) {
+    markStateMutated();
+  }
+  localStorage.setItem(ALLOCATION_KEY, nextValue);
   return syncStateFromLocal();
 }
 
