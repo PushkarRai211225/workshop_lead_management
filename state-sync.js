@@ -11,6 +11,19 @@ let bootstrapPromise = null;
 let pendingStateUpdate = Promise.resolve();
 const preferenceCache = new Map();
 let lastStateRefreshAt = 0;
+const stateSubscribers = new Set();
+
+function notifyStateSubscribers() {
+  const snapshot = getStateSnapshot();
+
+  stateSubscribers.forEach((subscriber) => {
+    try {
+      subscriber(snapshot);
+    } catch (error) {
+      console.error("Failed to notify a state subscriber.", error);
+    }
+  });
+}
 
 function cloneValue(value) {
   if (typeof structuredClone === "function") {
@@ -51,6 +64,7 @@ async function fetchJson(url, options = {}, timeoutMs = 10000) {
 function setCurrentState(snapshot) {
   currentState = normalizeState(snapshot);
   lastStateRefreshAt = Date.now();
+  notifyStateSubscribers();
   return getStateSnapshot();
 }
 
@@ -297,41 +311,13 @@ export async function saveTasks(tasks) {
 }
 
 export function startStatePolling(onRefresh, intervalMs = 5000) {
-  let isDisposed = false;
+  if (typeof onRefresh !== "function") {
+    return () => undefined;
+  }
 
-  const runRefresh = () => {
-    if (isDisposed || document.hidden) {
-      return;
-    }
-
-    void refreshState().then(() => {
-      if (typeof onRefresh === "function") {
-        onRefresh(getStateSnapshot());
-      }
-    }).catch(() => {
-      // Keep the last rendered snapshot when the API is temporarily unavailable.
-    });
-  };
-
-  const intervalId = setInterval(runRefresh, intervalMs);
-
-  const handleVisibilityChange = () => {
-    if (!document.hidden) {
-      runRefresh();
-    }
-  };
-
-  const handlePageShow = () => {
-    runRefresh();
-  };
-
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-  window.addEventListener("pageshow", handlePageShow);
+  stateSubscribers.add(onRefresh);
 
   return () => {
-    isDisposed = true;
-    clearInterval(intervalId);
-    document.removeEventListener("visibilitychange", handleVisibilityChange);
-    window.removeEventListener("pageshow", handlePageShow);
+    stateSubscribers.delete(onRefresh);
   };
 }
