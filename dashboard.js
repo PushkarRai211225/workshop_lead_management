@@ -1,7 +1,4 @@
-import { bootstrapLocalState, loadPersistedValue, savePersistedValue } from "./state-sync.js";
-
-const SESSION_KEY = "dvWorkshopSession";
-const LEADS_KEY = "dvWorkshopLeads";
+import { bootstrapLocalState, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
 
@@ -22,7 +19,7 @@ const newLeadsEl = document.getElementById("newLeads");
 const interestedLeadsEl = document.getElementById("interestedLeads");
 const convertedLeadsEl = document.getElementById("convertedLeads");
 
-const session = JSON.parse(localStorage.getItem(SESSION_KEY));
+const session = getSession();
 if (!session || !session.role) {
   window.location.href = "index.html";
 }
@@ -41,7 +38,7 @@ const DEFAULT_TIMELINE_STATE = {
 
 const persistedTimelineState = {
   ...DEFAULT_TIMELINE_STATE,
-  ...loadPersistedValue(TIMELINE_STORAGE_KEY, {})
+  ...await loadPersistedValue(TIMELINE_STORAGE_KEY, {})
 };
 
 timelinePreset.value = persistedTimelineState.preset || DEFAULT_TIMELINE_STATE.preset;
@@ -50,7 +47,7 @@ endDateInput.value = persistedTimelineState.endDate || "";
 customRangeFields.classList.toggle("hidden", timelinePreset.value !== "custom");
 
 function persistTimelineState() {
-  savePersistedValue(TIMELINE_STORAGE_KEY, {
+  void savePersistedValue(TIMELINE_STORAGE_KEY, {
     preset: timelinePreset.value,
     startDate: startDateInput.value,
     endDate: endDateInput.value
@@ -58,17 +55,7 @@ function persistTimelineState() {
 }
 
 function getLeads() {
-  const existing = localStorage.getItem(LEADS_KEY);
-  if (!existing) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(existing);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return getStoredLeads();
 }
 
 function buildKpis(leads) {
@@ -397,6 +384,9 @@ function hydrate(leads) {
 
 const leads = getLeads();
 hydrate(leads);
+startStatePolling(() => {
+  hydrate(getLeads());
+});
 
 timelinePreset.addEventListener("change", () => {
   const showCustom = timelinePreset.value === "custom";

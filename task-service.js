@@ -1,6 +1,5 @@
-import { markStateMutated, syncStateFromLocal } from "./state-sync.js";
+import { getTasks as getStoredTasks, saveTasks as saveStoredTasks } from "./state-sync.js";
 
-const TASKS_KEY = "dvWorkshopTasks";
 export const TASK_CATEGORY = {
   workshop: "workshop",
   admission: "admission"
@@ -10,19 +9,6 @@ const CATEGORY_LABELS = {
   [TASK_CATEGORY.workshop]: "Workshop Calling",
   [TASK_CATEGORY.admission]: "Admission Calling"
 };
-
-function safeParseArray(value) {
-  if (!value) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 function createTaskId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -52,8 +38,7 @@ export function normalizeTask(task = {}) {
 }
 
 export function getTasks() {
-  const raw = localStorage.getItem(TASKS_KEY);
-  const tasks = safeParseArray(raw);
+  const tasks = getStoredTasks();
   return tasks.map((task) => normalizeTask(task));
 }
 
@@ -66,12 +51,7 @@ export function getTaskCategoryLabel(category) {
 }
 
 export async function saveTasks(tasks) {
-  const nextValue = JSON.stringify(tasks.map((task) => normalizeTask(task)));
-  if (localStorage.getItem(TASKS_KEY) !== nextValue) {
-    markStateMutated();
-  }
-  localStorage.setItem(TASKS_KEY, nextValue);
-  return syncStateFromLocal();
+  return saveStoredTasks(tasks.map((task) => normalizeTask(task)));
 }
 
 export async function createTask(taskInput) {

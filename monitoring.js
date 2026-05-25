@@ -1,8 +1,4 @@
-import { bootstrapLocalState, loadPersistedValue, savePersistedValue } from "./state-sync.js";
-
-const LEADS_KEY = "dvWorkshopLeads";
-const SESSION_KEY = "dvWorkshopSession";
-const COUNSELORS_KEY = "dvCounselors";
+import { bootstrapLocalState, getCounselors, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
 
@@ -20,7 +16,7 @@ const resetMonitoringTimeline = document.getElementById("resetMonitoringTimeline
 const exportMonitoringBtn = document.getElementById("exportMonitoringBtn");
 const monitoringExportMessage = document.getElementById("monitoringExportMessage");
 
-const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+const session = getSession();
 
 let timelineFilter = {
   type: "week",
@@ -32,7 +28,7 @@ const TIMELINE_STORAGE_KEY = "dvWorkshopMonitoringTimeline";
 
 timelineFilter = {
   ...timelineFilter,
-  ...loadPersistedValue(TIMELINE_STORAGE_KEY, {})
+  ...await loadPersistedValue(TIMELINE_STORAGE_KEY, {})
 };
 
 function isCounselorSession() {
@@ -46,30 +42,16 @@ function getCounselorIdentity() {
 
   const sessionName = String(session?.name || "").trim().toLowerCase();
   const sessionEmail = String(session?.email || "").trim().toLowerCase();
-  const raw = localStorage.getItem(COUNSELORS_KEY);
+  const counselors = getCounselors();
+  const match = counselors.find(
+    (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+  );
 
-  if (!raw) {
-    return sessionName;
-  }
-
-  try {
-    const counselors = JSON.parse(raw);
-    if (!Array.isArray(counselors)) {
-      return sessionName;
-    }
-
-    const match = counselors.find(
-      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
-    );
-
-    return String(match?.name || session?.name || "").trim().toLowerCase();
-  } catch {
-    return sessionName;
-  }
+  return String(match?.name || session?.name || "").trim().toLowerCase() || sessionName;
 }
 
 function persistTimelineFilter() {
-  savePersistedValue(TIMELINE_STORAGE_KEY, timelineFilter);
+  void savePersistedValue(TIMELINE_STORAGE_KEY, timelineFilter);
 }
 
 function setExportMessage(text, isError = true) {
@@ -124,19 +106,9 @@ function normalizeLeadFields(leads) {
 }
 
 function getAllLeads() {
-  const raw = localStorage.getItem(LEADS_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    const leads = Array.isArray(parsed) ? parsed : [];
-    normalizeLeadFields(leads);
-    return leads;
-  } catch {
-    return [];
-  }
+  const leads = getStoredLeads();
+  normalizeLeadFields(leads);
+  return leads;
 }
 
 function applyTimelineFilter(leads) {
@@ -479,3 +451,6 @@ function renderAll() {
 
 bindTimelineControls();
 renderAll();
+startStatePolling(() => {
+  renderAll();
+});

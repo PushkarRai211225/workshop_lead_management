@@ -1,8 +1,4 @@
-import { bootstrapLocalState, loadPersistedValue, savePersistedValue } from "./state-sync.js";
-
-const LEADS_KEY = "dvWorkshopLeads";
-const SESSION_KEY = "dvWorkshopSession";
-const COUNSELORS_KEY = "dvCounselors";
+import { bootstrapLocalState, getCounselors, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
 
@@ -12,10 +8,10 @@ const lostSearchInput = document.getElementById("lostSearchInput");
 const applyLostSearch = document.getElementById("applyLostSearch");
 const resetLostSearch = document.getElementById("resetLostSearch");
 
-const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+const session = getSession();
 const SEARCH_STORAGE_KEY = "dvWorkshopLostLeadSearch";
 
-let searchQuery = String(loadPersistedValue(SEARCH_STORAGE_KEY, "") || "");
+let searchQuery = String(await loadPersistedValue(SEARCH_STORAGE_KEY, "") || "");
 
 if (lostSearchInput) {
   lostSearchInput.value = searchQuery;
@@ -32,30 +28,16 @@ function getCounselorIdentity() {
 
   const sessionName = String(session?.name || "").trim().toLowerCase();
   const sessionEmail = String(session?.email || "").trim().toLowerCase();
-  const raw = localStorage.getItem(COUNSELORS_KEY);
+  const counselors = getCounselors();
+  const match = counselors.find(
+    (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+  );
 
-  if (!raw) {
-    return sessionName;
-  }
-
-  try {
-    const counselors = JSON.parse(raw);
-    if (!Array.isArray(counselors)) {
-      return sessionName;
-    }
-
-    const match = counselors.find(
-      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
-    );
-
-    return String(match?.name || session?.name || "").trim().toLowerCase();
-  } catch {
-    return sessionName;
-  }
+  return String(match?.name || session?.name || "").trim().toLowerCase() || sessionName;
 }
 
 function persistSearchQuery() {
-  savePersistedValue(SEARCH_STORAGE_KEY, searchQuery);
+  void savePersistedValue(SEARCH_STORAGE_KEY, searchQuery);
 }
 
 function getScopedLeads(allLeads) {
@@ -101,19 +83,9 @@ function normalizeLeadFields(leads) {
 }
 
 function getAllLeads() {
-  const raw = localStorage.getItem(LEADS_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    const leads = Array.isArray(parsed) ? parsed : [];
-    normalizeLeadFields(leads);
-    return leads;
-  } catch {
-    return [];
-  }
+  const leads = getStoredLeads();
+  normalizeLeadFields(leads);
+  return leads;
 }
 
 function isPostWorkshopLead(lead) {
@@ -240,3 +212,6 @@ if (resetLostSearch) {
 }
 
 renderAll();
+startStatePolling(() => {
+  renderAll();
+});

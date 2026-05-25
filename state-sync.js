@@ -1,50 +1,25 @@
-const LEADS_KEY = "dvWorkshopLeads";
-const COUNSELORS_KEY = "dvCounselors";
-const ALLOCATION_KEY = "dvCounselorAllocation";
-const TASKS_KEY = "dvWorkshopTasks";
-const STATE_SYNCED_AT_KEY = "dvWorkshopStateSyncedAt";
-const STATE_MUTATED_AT_KEY = "dvWorkshopStateMutatedAt";
-const BOOTSTRAP_SYNCED_AT_KEY = "dvWorkshopBootstrapSyncedAt";
-const BOOTSTRAP_TTL_MS = 60000;
+const EMPTY_STATE = {
+  leads: [],
+  counselors: [],
+  allocation: [],
+  tasks: []
+};
 
-let syncInFlight = null;
-let syncQueued = false;
+let currentState = cloneValue(EMPTY_STATE);
+let currentSession = null;
+let bootstrapPromise = null;
+let pendingStateUpdate = Promise.resolve();
+const preferenceCache = new Map();
 
-function readArrayFromStorage(key) {
-  const value = localStorage.getItem(key);
-  if (!value) {
-    return [];
+function cloneValue(value) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
   }
 
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return JSON.parse(JSON.stringify(value));
 }
 
-function readStateSnapshot() {
-  return {
-    leads: readArrayFromStorage(LEADS_KEY),
-    counselors: readArrayFromStorage(COUNSELORS_KEY),
-    allocation: readArrayFromStorage(ALLOCATION_KEY),
-    tasks: readArrayFromStorage(TASKS_KEY)
-  };
-}
-
-function writeStateSnapshot(snapshot) {
-  localStorage.setItem(LEADS_KEY, JSON.stringify(Array.isArray(snapshot.leads) ? snapshot.leads : []));
-  localStorage.setItem(COUNSELORS_KEY, JSON.stringify(Array.isArray(snapshot.counselors) ? snapshot.counselors : []));
-  localStorage.setItem(ALLOCATION_KEY, JSON.stringify(Array.isArray(snapshot.allocation) ? snapshot.allocation : []));
-  localStorage.setItem(TASKS_KEY, JSON.stringify(Array.isArray(snapshot.tasks) ? snapshot.tasks : []));
-}
-
-export function replaceStateSnapshot(snapshot) {
-  writeStateSnapshot(snapshot);
-}
-
-function normalizeSnapshot(snapshot) {
+function normalizeState(snapshot = {}) {
   return {
     leads: Array.isArray(snapshot?.leads) ? snapshot.leads : [],
     counselors: Array.isArray(snapshot?.counselors) ? snapshot.counselors : [],
@@ -53,268 +28,114 @@ function normalizeSnapshot(snapshot) {
   };
 }
 
-function snapshotsMatch(left, right) {
-  const normalizedLeft = normalizeSnapshot(left);
-  const normalizedRight = normalizeSnapshot(right);
-  return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
-}
-
-function hasAnyState(snapshot) {
-  return Boolean(
-    (Array.isArray(snapshot.leads) && snapshot.leads.length)
-    || (Array.isArray(snapshot.counselors) && snapshot.counselors.length)
-    || (Array.isArray(snapshot.allocation) && snapshot.allocation.length)
-    || (Array.isArray(snapshot.tasks) && snapshot.tasks.length)
-  );
-}
-
-function hasSharedWorkState(snapshot) {
-  return Boolean(
-    (Array.isArray(snapshot.leads) && snapshot.leads.length)
-    || (Array.isArray(snapshot.allocation) && snapshot.allocation.length)
-    || (Array.isArray(snapshot.tasks) && snapshot.tasks.length)
-  );
-}
-
-function markStateSynced() {
-  localStorage.setItem(STATE_SYNCED_AT_KEY, String(Date.now()));
-}
-
-function getLastStateMutatedAt() {
-  const value = Number(localStorage.getItem(STATE_MUTATED_AT_KEY) || 0);
-  return Number.isFinite(value) ? value : 0;
-}
-
-export function markStateMutated() {
-  localStorage.setItem(STATE_MUTATED_AT_KEY, String(Date.now()));
-}
-
-function getLastBootstrapAt() {
-  const value = Number(localStorage.getItem(BOOTSTRAP_SYNCED_AT_KEY) || 0);
-  return Number.isFinite(value) ? value : 0;
-}
-
-function markBootstrapSynced() {
-  localStorage.setItem(BOOTSTRAP_SYNCED_AT_KEY, String(Date.now()));
-}
-
-async function fetchServerState(timeoutMs = 4000) {
-  const response = await fetchWithTimeout("/api/state", {
-    method: "GET",
-    headers: {
-      Accept: "application/json"
-    }
-  }, timeoutMs);
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const payload = await response.json();
-  const snapshot = normalizeSnapshot(payload);
-
-  return {
-    payload,
-    snapshot,
-    updatedAt: Number(new Date(payload.updatedAt || 0).getTime()) || 0,
-    clearedAt: Number(new Date(payload.clearedAt || 0).getTime()) || 0
-  };
-}
-
-async function refreshBootstrapState(localSnapshot, allowBackfill = false) {
-  const serverState = await fetchServerState();
-  if (!serverState) {
-    return;
-  }
-
-  const serverLeads = serverState.snapshot.leads;
-  const serverCounselors = serverState.snapshot.counselors;
-  const serverAllocation = serverState.snapshot.allocation;
-  const serverTasks = serverState.snapshot.tasks;
-  const lastLocalMutationAt = getLastStateMutatedAt();
-
-  const serverLooksFresh =
-    !serverLeads.length
-    && !serverCounselors.length
-    && !serverAllocation.length
-    && !serverTasks.length;
-
-  const preferLocalSnapshot = !serverState.clearedAt && (
-    serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverState.updatedAt)
-  );
-
-  const mergedLeads = preferLocalSnapshot && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
-  const mergedCounselors = preferLocalSnapshot && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
-  const mergedAllocation = preferLocalSnapshot && localSnapshot.allocation.length ? localSnapshot.allocation : serverAllocation;
-  const mergedTasks = preferLocalSnapshot && localSnapshot.tasks.length ? localSnapshot.tasks : serverTasks;
-
-  writeStateSnapshot({
-    leads: mergedLeads,
-    counselors: mergedCounselors,
-    allocation: mergedAllocation,
-    tasks: mergedTasks
-  });
-  markBootstrapSynced();
-
-  const shouldBackfillServer = allowBackfill && (serverLooksFresh || (!serverTasks.length && localSnapshot.tasks.length)) && (
-    mergedLeads.length
-    || mergedCounselors.length
-    || mergedAllocation.length
-    || mergedTasks.length
-  );
-
-  if (shouldBackfillServer) {
-    void fetchWithTimeout("/api/state", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        leads: mergedLeads,
-        counselors: mergedCounselors,
-        allocation: mergedAllocation,
-        tasks: mergedTasks
-      })
-    }, 4000);
-  }
-}
-
-function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   return fetch(url, {
     ...options,
+    credentials: "same-origin",
     signal: controller.signal
   }).finally(() => clearTimeout(timeoutId));
 }
 
-function safeParseArray(value) {
-  if (!value) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+async function fetchJson(url, options = {}, timeoutMs = 10000) {
+  const response = await fetchWithTimeout(url, options, timeoutMs);
+  const contentType = response.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const payload = isJson ? await response.json() : null;
+  return { response, payload };
 }
 
-function safeParseValue(value) {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
+function setCurrentState(snapshot) {
+  currentState = normalizeState(snapshot);
+  return getStateSnapshot();
 }
 
-export function loadPersistedValue(key, fallback) {
-  const parsed = safeParseValue(localStorage.getItem(key));
-  return parsed === null ? structuredClone(fallback) : parsed;
+export function getStateSnapshot() {
+  return cloneValue(currentState);
 }
 
-export function savePersistedValue(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+export function getStateField(field) {
+  return cloneValue(currentState?.[field] ?? []);
 }
 
-export async function bootstrapLocalState() {
-  const localSnapshot = readStateSnapshot();
-  const localHasState = hasAnyState(localSnapshot);
-  const localHasSharedWorkState = hasSharedWorkState(localSnapshot);
-  const lastBootstrapAt = getLastBootstrapAt();
+export function getLeads() {
+  return getStateField("leads");
+}
 
-  if (localHasState && localHasSharedWorkState) {
-    if (Date.now() - lastBootstrapAt >= BOOTSTRAP_TTL_MS) {
-      try {
-        await refreshBootstrapState(localSnapshot, false);
-      } catch {
-        // Keep local cache when API is temporarily unavailable.
-      }
+export function getCounselors() {
+  return getStateField("counselors");
+}
+
+export function getAllocation() {
+  return getStateField("allocation");
+}
+
+export function getTasks() {
+  return getStateField("tasks");
+}
+
+export function replaceStateSnapshot(snapshot) {
+  return setCurrentState(snapshot);
+}
+
+export async function refreshState() {
+  const { response, payload } = await fetchJson("/api/state", {
+    method: "GET",
+    headers: {
+      Accept: "application/json"
     }
-
-    return;
-  }
-
-  try {
-    await refreshBootstrapState(localSnapshot, true);
-  } catch {
-    // Keep local cache when API is temporarily unavailable.
-  }
-}
-
-async function flushStateSync() {
-  if (syncInFlight) {
-    syncQueued = true;
-    return syncInFlight;
-  }
-
-  syncInFlight = (async () => {
-    do {
-      syncQueued = false;
-      const snapshot = readStateSnapshot();
-
-      const response = await fetchWithTimeout("/api/state", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(snapshot)
-      }, 4000);
-
-      if (response.ok) {
-        markStateSynced();
-      }
-    } while (syncQueued);
-  })().catch(() => {
-    // Best-effort sync; local state remains intact.
-  }).finally(() => {
-    syncInFlight = null;
   });
 
-  return syncInFlight;
+  if (!response.ok) {
+    throw new Error(payload?.message || "Failed to fetch state.");
+  }
+
+  return setCurrentState(payload);
+}
+
+export async function updateStateFields(fields) {
+  const nextFields = Object.fromEntries(
+    Object.entries(fields || {}).filter(([, value]) => Array.isArray(value))
+  );
+
+  if (!Object.keys(nextFields).length) {
+    return { ok: false, message: "No valid state fields provided." };
+  }
+
+  pendingStateUpdate = pendingStateUpdate.then(async () => {
+    const { response, payload } = await fetchJson("/api/state", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(nextFields)
+    });
+
+    if (!response.ok) {
+      return { ok: false, message: payload?.message || "Failed to update state." };
+    }
+
+    setCurrentState(payload);
+    return { ok: true, payload: getStateSnapshot() };
+  }).catch((error) => ({
+    ok: false,
+    message: error?.message || "Failed to update state."
+  }));
+
+  return pendingStateUpdate;
 }
 
 export async function syncStateFromLocal() {
-  try {
-    void flushStateSync();
-    return { ok: true, scheduled: true };
-  } catch {
-    // Best-effort sync; local state remains intact.
-    return { ok: false };
-  }
+  return { ok: true, scheduled: false };
 }
 
-export async function syncStateFromLocalAndVerify(timeoutMs = 4000) {
-  const localSnapshot = readStateSnapshot();
-
+export async function syncStateFromLocalAndVerify() {
   try {
-    await flushStateSync();
-
-    const response = await fetchWithTimeout("/api/state", {
-      method: "GET",
-      headers: {
-        Accept: "application/json"
-      }
-    }, timeoutMs);
-
-    if (!response.ok) {
-      return { ok: false, message: "Backend verification failed." };
-    }
-
-    const payload = await response.json();
-    const verifiedSnapshot = normalizeSnapshot(payload);
-
-    if (!snapshotsMatch(localSnapshot, verifiedSnapshot)) {
-      return { ok: false, message: "Backend state does not match the saved changes." };
-    }
-
-    markStateSynced();
+    await pendingStateUpdate;
+    await refreshState();
     return { ok: true };
   } catch (error) {
     return {
@@ -322,4 +143,163 @@ export async function syncStateFromLocalAndVerify(timeoutMs = 4000) {
       message: error?.message || "Unable to confirm the backend update."
     };
   }
+}
+
+export function markStateMutated() {
+  return undefined;
+}
+
+export async function refreshSession() {
+  const { response, payload } = await fetchJson("/api/auth/session", {
+    method: "GET",
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  if (response.status === 401) {
+    currentSession = null;
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(payload?.message || "Failed to fetch session.");
+  }
+
+  currentSession = payload;
+  return getSession();
+}
+
+export function getSession() {
+  return currentSession ? cloneValue(currentSession) : null;
+}
+
+export async function login({ role, identifier, password }) {
+  const { response, payload } = await fetchJson("/api/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({ role, identifier, password })
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: payload?.message || "Login failed."
+    };
+  }
+
+  currentSession = payload?.session || null;
+  return {
+    ok: true,
+    session: getSession(),
+    landing: payload?.landing || "index.html"
+  };
+}
+
+export async function logout() {
+  await fetchWithTimeout("/api/auth/logout", {
+    method: "POST",
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  currentSession = null;
+  preferenceCache.clear();
+}
+
+export async function bootstrapLocalState() {
+  if (!bootstrapPromise) {
+    bootstrapPromise = (async () => {
+      await Promise.all([
+        refreshState(),
+        refreshSession().catch(() => null)
+      ]);
+    })().finally(() => {
+      bootstrapPromise = null;
+    });
+  }
+
+  return bootstrapPromise;
+}
+
+export async function loadPersistedValue(key, fallback) {
+  const scope = encodeURIComponent(String(key || "").trim());
+  if (!scope) {
+    return cloneValue(fallback);
+  }
+
+  if (preferenceCache.has(scope)) {
+    return cloneValue(preferenceCache.get(scope));
+  }
+
+  const { response, payload } = await fetchJson(`/api/preferences/${scope}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    return cloneValue(fallback);
+  }
+
+  const value = payload?.value ?? cloneValue(fallback);
+  preferenceCache.set(scope, cloneValue(value));
+  return cloneValue(value);
+}
+
+export async function savePersistedValue(key, value) {
+  const scope = encodeURIComponent(String(key || "").trim());
+  if (!scope) {
+    return { ok: false, message: "Preference scope is required." };
+  }
+
+  preferenceCache.set(scope, cloneValue(value));
+
+  const { response, payload } = await fetchJson(`/api/preferences/${scope}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({ value })
+  });
+
+  if (!response.ok) {
+    return { ok: false, message: payload?.message || "Failed to save preference." };
+  }
+
+  return { ok: true, value: payload?.value ?? value };
+}
+
+export async function saveLeads(leads) {
+  return updateStateFields({ leads });
+}
+
+export async function saveCounselors(counselors) {
+  return updateStateFields({ counselors });
+}
+
+export async function saveAllocation(allocation) {
+  return updateStateFields({ allocation });
+}
+
+export async function saveTasks(tasks) {
+  return updateStateFields({ tasks });
+}
+
+export function startStatePolling(onRefresh, intervalMs = 5000) {
+  return setInterval(() => {
+    void refreshState().then(() => {
+      if (typeof onRefresh === "function") {
+        onRefresh(getStateSnapshot());
+      }
+    }).catch(() => {
+      // Keep the last rendered snapshot when the API is temporarily unavailable.
+    });
+  }, intervalMs);
 }

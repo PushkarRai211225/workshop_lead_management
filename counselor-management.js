@@ -1,8 +1,14 @@
-import { bootstrapLocalState, markStateMutated, syncStateFromLocal, syncStateFromLocalAndVerify } from "./state-sync.js";
-
-const COUNSELORS_KEY = "dvCounselors";
-const LEADS_KEY = "dvWorkshopLeads";
-const ALLOCATION_KEY = "dvCounselorAllocation";
+import {
+  bootstrapLocalState,
+  getAllocation as getStoredAllocation,
+  getCounselors as getStoredCounselors,
+  getLeads as getStoredLeads,
+  saveAllocation as persistAllocation,
+  saveCounselors as persistCounselors,
+  saveLeads as persistLeads,
+  startStatePolling,
+  syncStateFromLocalAndVerify
+} from "./state-sync.js";
 
 await bootstrapLocalState();
 
@@ -24,83 +30,34 @@ function setMessage(text, isError = true) {
 }
 
 function getCounselors() {
-  const raw = localStorage.getItem(COUNSELORS_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      throw new Error("Invalid counselors");
+  return getStoredCounselors().map((item) => ({
+    ...item,
+    email: String(item.email || "").toLowerCase(),
+    permissions: {
+      ...DEFAULT_PERMISSIONS,
+      ...(item.permissions || {})
     }
-
-    return parsed.map((item) => ({
-      ...item,
-      email: String(item.email || "").toLowerCase(),
-      permissions: {
-        ...DEFAULT_PERMISSIONS,
-        ...(item.permissions || {})
-      }
-    }));
-  } catch {
-    return [];
-  }
+  }));
 }
 
 function saveCounselors(counselors) {
-  const nextValue = JSON.stringify(counselors);
-  if (localStorage.getItem(COUNSELORS_KEY) !== nextValue) {
-    markStateMutated();
-  }
-  localStorage.setItem(COUNSELORS_KEY, nextValue);
-  return syncStateFromLocal();
+  return persistCounselors(counselors);
 }
 
 function getLeads() {
-  const raw = localStorage.getItem(LEADS_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return getStoredLeads();
 }
 
 function saveLeads(leads) {
-  const nextValue = JSON.stringify(leads);
-  if (localStorage.getItem(LEADS_KEY) !== nextValue) {
-    markStateMutated();
-  }
-  localStorage.setItem(LEADS_KEY, nextValue);
-  return syncStateFromLocal();
+  return persistLeads(leads);
 }
 
 function getAllocation() {
-  const raw = localStorage.getItem(ALLOCATION_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return getStoredAllocation();
 }
 
 function saveAllocation(allocation) {
-  const nextValue = JSON.stringify(allocation);
-  if (localStorage.getItem(ALLOCATION_KEY) !== nextValue) {
-    markStateMutated();
-  }
-  localStorage.setItem(ALLOCATION_KEY, nextValue);
-  return syncStateFromLocal();
+  return persistAllocation(allocation);
 }
 
 async function syncAllocationWithCounselors(counselors) {
@@ -340,3 +297,6 @@ counselorForm.addEventListener("submit", async (event) => {
 });
 
 renderCounselorList();
+startStatePolling(() => {
+  renderCounselorList();
+});

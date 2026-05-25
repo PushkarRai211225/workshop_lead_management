@@ -4,6 +4,8 @@ const { MongoClient } = require("mongodb");
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || "dv_workshop_site";
 const MONGODB_STATE_COLLECTION = process.env.MONGODB_STATE_COLLECTION || "app_state";
+const MONGODB_SESSION_COLLECTION = process.env.MONGODB_SESSION_COLLECTION || "user_sessions";
+const MONGODB_PREFERENCE_COLLECTION = process.env.MONGODB_PREFERENCE_COLLECTION || "user_preferences";
 
 if (!MONGODB_URI) {
   console.error("Missing MONGODB_URI in environment.");
@@ -18,6 +20,8 @@ async function run() {
 
     const db = client.db(MONGODB_DB_NAME);
     const collection = db.collection(MONGODB_STATE_COLLECTION);
+    const sessionCollection = db.collection(MONGODB_SESSION_COLLECTION);
+    const preferenceCollection = db.collection(MONGODB_PREFERENCE_COLLECTION);
     const now = new Date().toISOString();
 
     const result = await collection.updateOne(
@@ -38,8 +42,13 @@ async function run() {
       { upsert: true }
     );
 
+    const [sessionResult, preferenceResult] = await Promise.all([
+      sessionCollection.deleteMany({}),
+      preferenceCollection.deleteMany({})
+    ]);
+
     console.log(
-      `Cleared leads, allocation, and tasks in ${MONGODB_DB_NAME}.${MONGODB_STATE_COLLECTION} while preserving counselor credentials (matched: ${result.matchedCount}, modified: ${result.modifiedCount}).`
+      `Cleared leads, allocation, tasks, sessions, and saved page state while preserving counselor credentials (${MONGODB_DB_NAME}.${MONGODB_STATE_COLLECTION}: matched ${result.matchedCount}, modified ${result.modifiedCount}; ${MONGODB_SESSION_COLLECTION}: deleted ${sessionResult.deletedCount}; ${MONGODB_PREFERENCE_COLLECTION}: deleted ${preferenceResult.deletedCount}).`
     );
   } finally {
     await client.close();

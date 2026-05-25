@@ -1,10 +1,18 @@
-import { bootstrapLocalState, loadPersistedValue, markStateMutated, replaceStateSnapshot, savePersistedValue, syncStateFromLocal, syncStateFromLocalAndVerify } from "./state-sync.js";
+import {
+  bootstrapLocalState,
+  getAllocation as getStoredAllocation,
+  getCounselors as getStoredCounselors,
+  getLeads as getStoredLeads,
+  getSession,
+  loadPersistedValue,
+  replaceStateSnapshot,
+  saveAllocation as persistAllocation,
+  saveLeads as persistLeads,
+  savePersistedValue,
+  startStatePolling,
+  syncStateFromLocalAndVerify
+} from "./state-sync.js";
 import { createTask, TASK_CATEGORY } from "./task-service.js";
-
-const LEADS_KEY = "dvWorkshopLeads";
-const ALLOCATION_KEY = "dvCounselorAllocation";
-const SESSION_KEY = "dvWorkshopSession";
-const COUNSELORS_KEY = "dvCounselors";
 
 await bootstrapLocalState();
 
@@ -37,7 +45,7 @@ const taskNotesInput = document.getElementById("taskNotes");
 const taskDueDateInput = document.getElementById("taskDueDate");
 const taskMessage = document.getElementById("taskMessage");
 
-const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+const session = getSession();
 const isAdmin = session?.role === "admin";
 const canCreateTasks = session?.role === "counselor";
 
@@ -203,26 +211,12 @@ function getCounselorIdentity() {
 
   const sessionName = String(session?.name || "").trim().toLowerCase();
   const sessionEmail = String(session?.email || "").trim().toLowerCase();
-  const raw = localStorage.getItem(COUNSELORS_KEY);
+  const counselors = getStoredCounselors();
+  const match = counselors.find(
+    (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+  );
 
-  if (!raw) {
-    return sessionName;
-  }
-
-  try {
-    const counselors = JSON.parse(raw);
-    if (!Array.isArray(counselors)) {
-      return sessionName;
-    }
-
-    const match = counselors.find(
-      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
-    );
-
-    return String(match?.name || session?.name || "").trim().toLowerCase();
-  } catch {
-    return sessionName;
-  }
+  return String(match?.name || session?.name || "").trim().toLowerCase() || sessionName;
 }
 
 function getScopedLeads(allLeads) {
@@ -272,7 +266,7 @@ const DEFAULT_FILTER = {
 const FILTER_STORAGE_KEY = "dvWorkshopWorkshopCallingFilters";
 let filter = {
   ...DEFAULT_FILTER,
-  ...loadPersistedValue(FILTER_STORAGE_KEY, {})
+  ...await loadPersistedValue(FILTER_STORAGE_KEY, {})
 };
 
 const DEFAULT_ALLOCATION = [];
@@ -311,7 +305,7 @@ function getLeadImportSourceFiles(lead) {
 }
 
 function persistFilterState() {
-  savePersistedValue(FILTER_STORAGE_KEY, filter);
+  void savePersistedValue(FILTER_STORAGE_KEY, filter);
 }
 
 function normalizeFilterState(leads) {
@@ -390,28 +384,13 @@ function normalizeLeadFields(leads) {
 }
 
 function getAllLeads() {
-  const raw = localStorage.getItem(LEADS_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    const leads = Array.isArray(parsed) ? parsed : [];
-    normalizeLeadFields(leads);
-    return leads;
-  } catch {
-    return [];
-  }
+  const leads = getStoredLeads();
+  normalizeLeadFields(leads);
+  return leads;
 }
 
 function saveAllLeads(leads) {
-  const nextValue = JSON.stringify(leads);
-  if (localStorage.getItem(LEADS_KEY) !== nextValue) {
-    markStateMutated();
-  }
-  localStorage.setItem(LEADS_KEY, nextValue);
-  void syncStateFromLocal();
+  void persistLeads(leads);
 }
 
 async function deleteWholeLeadDataset() {
@@ -507,49 +486,29 @@ async function deleteLostLeads() {
 }
 
 function saveAllocation(allocation) {
-  localStorage.setItem(ALLOCATION_KEY, JSON.stringify(allocation));
-  void syncStateFromLocal();
+  void persistAllocation(allocation);
 }
 
 function getAllocation() {
-  const raw = localStorage.getItem(ALLOCATION_KEY);
-  if (!raw) {
-    localStorage.setItem(ALLOCATION_KEY, JSON.stringify(DEFAULT_ALLOCATION));
+  const allocation = getStoredAllocation();
+  if (!Array.isArray(allocation) || !allocation.length) {
     return structuredClone(DEFAULT_ALLOCATION);
   }
 
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.length) {
-      localStorage.setItem(ALLOCATION_KEY, JSON.stringify(DEFAULT_ALLOCATION));
-      return structuredClone(DEFAULT_ALLOCATION);
-    }
-
-    return parsed.map((item) => ({
-      name: String(item.name || "").trim(),
-      percentage: Number(item.percentage || 0)
-    }));
-  } catch {
-    localStorage.setItem(ALLOCATION_KEY, JSON.stringify(DEFAULT_ALLOCATION));
-    return structuredClone(DEFAULT_ALLOCATION);
-  }
+  return allocation.map((item) => ({
+    name: String(item.name || "").trim(),
+    percentage: Number(item.percentage || 0)
+  }));
 }
 
 async function getCounselorNamesForAllocation() {
-  const localRaw = localStorage.getItem(COUNSELORS_KEY);
-  if (localRaw) {
-    try {
-      const localCounselors = JSON.parse(localRaw);
-      if (Array.isArray(localCounselors) && localCounselors.length) {
-        return [...new Set(
-          localCounselors
-            .map((item) => extractCounselorName(item))
-            .filter(Boolean)
-        )];
-      }
-    } catch {
-      // Continue with API fallback.
-    }
+  const localCounselors = getStoredCounselors();
+  if (Array.isArray(localCounselors) && localCounselors.length) {
+    return [...new Set(
+      localCounselors
+        .map((item) => extractCounselorName(item))
+        .filter(Boolean)
+    )];
   }
 
   try {
@@ -565,8 +524,6 @@ async function getCounselorNamesForAllocation() {
     const payload = json;
     const counselors = Array.isArray(payload?.counselors) ? payload.counselors : [];
 
-    localStorage.setItem(COUNSELORS_KEY, JSON.stringify(counselors));
-
     return [...new Set(
       counselors
         .map((item) => extractCounselorName(item))
@@ -578,21 +535,9 @@ async function getCounselorNamesForAllocation() {
 }
 
 function getActiveCounselorNames() {
-  const raw = localStorage.getItem(COUNSELORS_KEY);
-  let names = [];
-
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        names = parsed
-          .map((item) => String(item.name || "").trim())
-          .filter(Boolean);
-      }
-    } catch {
-      names = [];
-    }
-  }
+  let names = getStoredCounselors()
+    .map((item) => String(item.name || "").trim())
+    .filter(Boolean);
 
   if (!names.length) {
     names = getAllocation()
@@ -1093,8 +1038,6 @@ function setupAdminPanel() {
     const names = await getCounselorNamesForAllocation();
     const existing = getAllocation();
     const merged = mergeAllocationNames(names, existing);
-
-    saveAllocation(merged);
 
     if (!merged.length) {
       renderAllocationRows([]);
@@ -1871,7 +1814,6 @@ if (document.readyState === "loading") {
 function renderAll() {
   const allLeads = getAllLeads();
   normalizeLeadFields(allLeads);
-  saveAllLeads(allLeads);
 
   if (deleteImportedFileSelect) {
     const importedFileNames = [...new Set(allLeads.flatMap((lead) => getLeadImportSourceFiles(lead)))].sort((left, right) => left.localeCompare(right));
@@ -1901,3 +1843,6 @@ function renderAll() {
 }
 
 renderAll();
+startStatePolling(() => {
+  renderAll();
+});

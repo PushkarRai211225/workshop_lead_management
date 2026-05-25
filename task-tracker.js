@@ -1,15 +1,12 @@
-import { bootstrapLocalState } from "./state-sync.js";
+import { bootstrapLocalState, getCounselors, getSession, startStatePolling } from "./state-sync.js";
 import { deleteTask, getTaskCategoryLabel, getTasksByCategory, TASK_CATEGORY, updateTask } from "./task-service.js";
 
 await bootstrapLocalState();
 
-const SESSION_KEY = "dvWorkshopSession";
-const COUNSELORS_KEY = "dvCounselors";
-
 const workshopTaskSection = document.getElementById("workshopTaskSection");
 const admissionTaskSection = document.getElementById("admissionTaskSection");
 
-const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+const session = getSession();
 
 function isCounselorSession() {
   return session?.role === "counselor";
@@ -22,26 +19,12 @@ function getCounselorIdentity() {
 
   const sessionName = String(session?.name || "").trim().toLowerCase();
   const sessionEmail = String(session?.email || "").trim().toLowerCase();
-  const raw = localStorage.getItem(COUNSELORS_KEY);
+  const counselors = getCounselors();
+  const match = counselors.find(
+    (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+  );
 
-  if (!raw) {
-    return sessionName;
-  }
-
-  try {
-    const counselors = JSON.parse(raw);
-    if (!Array.isArray(counselors)) {
-      return sessionName;
-    }
-
-    const match = counselors.find(
-      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
-    );
-
-    return String(match?.name || session?.name || "").trim().toLowerCase();
-  } catch {
-    return sessionName;
-  }
+  return String(match?.name || session?.name || "").trim().toLowerCase() || sessionName;
 }
 
 function getScopedTasks(tasks) {
@@ -210,9 +193,6 @@ function renderAll() {
 }
 
 renderAll();
-
-window.addEventListener("storage", (event) => {
-  if (event.key === "dvWorkshopTasks" || event.key === null) {
-    renderAll();
-  }
+startStatePolling(() => {
+  renderAll();
 });

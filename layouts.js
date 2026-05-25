@@ -1,5 +1,5 @@
-const SESSION_KEY = "dvWorkshopSession";
-const COUNSELORS_KEY = "dvCounselors";
+import { bootstrapLocalState, getSession, getStateField, logout, refreshSession } from "./state-sync.js";
+
 const current = window.location.pathname.split("/").pop() || "dashboard.html";
 
 const PAGE_PERMISSION_MAP = {
@@ -28,19 +28,6 @@ function applyActiveSidebarState() {
   });
 }
 
-function getSession() {
-  const raw = localStorage.getItem(SESSION_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
 function hydrateRoleTag(session) {
   const roleTags = document.querySelectorAll("[data-role-tag]");
   const text = session?.role === "admin" ? "Admin" : "Counselor";
@@ -50,17 +37,7 @@ function hydrateRoleTag(session) {
 }
 
 function getCounselors() {
-  const raw = localStorage.getItem(COUNSELORS_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return getStateField("counselors");
 }
 
 function getCounselorPermissions(session) {
@@ -144,15 +121,16 @@ function enforceAccess(session) {
 function bindLogout() {
   const buttons = document.querySelectorAll("[data-logout]");
   buttons.forEach((button) => {
-    button.addEventListener("click", () => {
-      localStorage.removeItem(SESSION_KEY);
+    button.addEventListener("click", async () => {
+      await logout();
       window.location.href = "index.html";
     });
   });
 }
 
-function guardProtectedPages() {
-  const session = getSession();
+async function guardProtectedPages() {
+  await bootstrapLocalState();
+  const session = getSession() || await refreshSession().catch(() => null);
   if (!session?.role) {
     window.location.href = "index.html";
     return null;
@@ -160,7 +138,7 @@ function guardProtectedPages() {
   return session;
 }
 
-const session = guardProtectedPages();
+const session = await guardProtectedPages();
 if (session) {
   applyRoleVisibility(session);
   const allowed = enforceAccess(session);

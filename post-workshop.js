@@ -1,9 +1,14 @@
-import { bootstrapLocalState, loadPersistedValue, markStateMutated, savePersistedValue, syncStateFromLocal } from "./state-sync.js";
+import {
+  bootstrapLocalState,
+  getCounselors as getStoredCounselors,
+  getLeads as getStoredLeads,
+  getSession,
+  loadPersistedValue,
+  saveLeads as persistLeads,
+  savePersistedValue,
+  startStatePolling
+} from "./state-sync.js";
 import { createTask, TASK_CATEGORY } from "./task-service.js";
-
-const LEADS_KEY = "dvWorkshopLeads";
-const SESSION_KEY = "dvWorkshopSession";
-const COUNSELORS_KEY = "dvCounselors";
 
 await bootstrapLocalState();
 
@@ -23,7 +28,7 @@ const taskNotesInput = document.getElementById("taskNotes");
 const taskDueDateInput = document.getElementById("taskDueDate");
 const taskMessage = document.getElementById("taskMessage");
 
-const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+const session = getSession();
 const isAdmin = session?.role === "admin";
 const canCreateTasks = session?.role === "counselor";
 
@@ -43,7 +48,7 @@ const DEFAULT_FILTER = {
 };
 
 const FILTER_STORAGE_KEY = "dvWorkshopAdmissionCallingFilters";
-const persistedFilter = loadPersistedValue(FILTER_STORAGE_KEY, {});
+const persistedFilter = await loadPersistedValue(FILTER_STORAGE_KEY, {});
 
 if (persistedFilter.workshopCalling && !persistedFilter.workshopCallingWsStatus) {
   persistedFilter.workshopCallingWsStatus = persistedFilter.workshopCalling;
@@ -70,7 +75,7 @@ function setMessage(text, isError = true) {
 }
 
 function persistFilterState() {
-  savePersistedValue(FILTER_STORAGE_KEY, filter);
+  void savePersistedValue(FILTER_STORAGE_KEY, filter);
 }
 
 function isCounselorSession() {
@@ -84,26 +89,12 @@ function getCounselorIdentity() {
 
   const sessionName = String(session?.name || "").trim().toLowerCase();
   const sessionEmail = String(session?.email || "").trim().toLowerCase();
-  const raw = localStorage.getItem(COUNSELORS_KEY);
+  const counselors = getStoredCounselors();
+  const match = counselors.find(
+    (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
+  );
 
-  if (!raw) {
-    return sessionName;
-  }
-
-  try {
-    const counselors = JSON.parse(raw);
-    if (!Array.isArray(counselors)) {
-      return sessionName;
-    }
-
-    const match = counselors.find(
-      (item) => String(item.email || "").trim().toLowerCase() === sessionEmail
-    );
-
-    return String(match?.name || session?.name || "").trim().toLowerCase();
-  } catch {
-    return sessionName;
-  }
+  return String(match?.name || session?.name || "").trim().toLowerCase() || sessionName;
 }
 
 function getScopedLeads(allLeads) {
@@ -158,28 +149,13 @@ function normalizeLeadFields(leads) {
 }
 
 function getAllLeads() {
-  const raw = localStorage.getItem(LEADS_KEY);
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    const leads = Array.isArray(parsed) ? parsed : [];
-    normalizeLeadFields(leads);
-    return leads;
-  } catch {
-    return [];
-  }
+  const leads = getStoredLeads();
+  normalizeLeadFields(leads);
+  return leads;
 }
 
 function saveAllLeads(leads) {
-  const nextValue = JSON.stringify(leads);
-  if (localStorage.getItem(LEADS_KEY) !== nextValue) {
-    markStateMutated();
-  }
-  localStorage.setItem(LEADS_KEY, nextValue);
-  void syncStateFromLocal();
+  void persistLeads(leads);
 }
 
 function isLostLead(lead) {
@@ -979,7 +955,6 @@ if (document.readyState === "loading") {
 function renderAll() {
   const allLeads = getAllLeads();
   normalizeLeadFields(allLeads);
-  saveAllLeads(allLeads);
 
   const scopedLeads = getScopedLeads(allLeads);
   const admissionLeads = getAdmissionCallingLeads(scopedLeads);
@@ -991,3 +966,6 @@ function renderAll() {
 }
 
 renderAll();
+startStatePolling(() => {
+  renderAll();
+});
