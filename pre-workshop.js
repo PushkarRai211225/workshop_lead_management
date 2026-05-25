@@ -1,4 +1,4 @@
-import { bootstrapLocalState, loadPersistedValue, markStateMutated, savePersistedValue, syncStateFromLocal, syncStateFromLocalAndVerify } from "./state-sync.js";
+import { bootstrapLocalState, loadPersistedValue, markStateMutated, replaceStateSnapshot, savePersistedValue, syncStateFromLocal, syncStateFromLocalAndVerify } from "./state-sync.js";
 import { createTask, TASK_CATEGORY } from "./task-service.js";
 
 const LEADS_KEY = "dvWorkshopLeads";
@@ -65,6 +65,46 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4000) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function verifyAssignedCounselorsOnBackend(importedRecords) {
+  const recordsToVerify = importedRecords
+    .map(({ lead }) => ({
+      id: String(lead?.id || ""),
+      counselor: String(lead?.counselor || "").trim()
+    }))
+    .filter((record) => record.id && record.counselor && record.counselor.toLowerCase() !== "unassigned");
+
+  if (!recordsToVerify.length) {
+    return { ok: true };
+  }
+
+  const { response, json } = await fetchJsonWithTimeout("/api/state", {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  }, 4000);
+
+  if (!response.ok) {
+    return { ok: false, message: "Could not confirm counselor assignment from the backend." };
+  }
+
+  const backendLeads = Array.isArray(json?.leads) ? json.leads : [];
+  const backendById = new Map(backendLeads.map((lead) => [String(lead.id), lead]));
+
+  const mismatchedLead = recordsToVerify.find((record) => {
+    const backendLead = backendById.get(record.id);
+    const backendCounselor = String(backendLead?.counselor || "").trim();
+    return !backendLead || backendCounselor !== record.counselor;
+  });
+
+  if (mismatchedLead) {
+    return {
+      ok: false,
+      message: `Backend did not confirm counselor assignment for lead ${mismatchedLead.id}.`
+    };
+  }
+
+  return { ok: true };
 }
 
 function deleteLead(leadId) {
@@ -380,11 +420,23 @@ async function deleteWholeLeadDataset() {
     return;
   }
 
-  saveAllLeads([]);
+  const { response, json } = await fetchJsonWithTimeout("/api/state/reset", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  }, 4000);
+
+  if (!response.ok) {
+    setMessage(cleanupMessage, json?.message || "Backend reset failed.", true);
+    return;
+  }
+
+  replaceStateSnapshot(json);
 
   const syncResult = await syncStateFromLocalAndVerify();
   if (!syncResult.ok) {
-    setMessage(cleanupMessage, syncResult.message || "Backend confirmation failed after deleting the dataset.", true);
+    setMessage(cleanupMessage, syncResult.message || "Backend confirmation failed after resetting the database.", true);
     return;
   }
 
@@ -998,6 +1050,12 @@ async function handleLeadImport() {
     return;
   }
 
+  const assignmentResult = await verifyAssignedCounselorsOnBackend(importedRecords);
+  if (!assignmentResult.ok) {
+    setMessage(importMessage, assignmentResult.message || "Counselor assignment could not be verified.", true);
+    return;
+  }
+
   updateImportSummary(rows.length, importedRecords.length, failed.length);
 
   if (failed.length) {
@@ -1010,7 +1068,11 @@ async function handleLeadImport() {
     if (updatedCount) {
       messageParts.push(`updated ${updatedCount}`);
     }
-    setMessage(importMessage, `Import completed: ${messageParts.join(" and ") || "no changes"}.`, false);
+    if (recordsNeedingAssignment.length) {
+      setMessage(importMessage, "Counselor Assigned Successfully.", false);
+    } else {
+      setMessage(importMessage, `Import completed: ${messageParts.join(" and ") || "no changes"}.`, false);
+    }
   }
 
   leadImportFile.value = "";

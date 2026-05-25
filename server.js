@@ -32,7 +32,8 @@ function normalizeStateDoc(state = {}) {
     allocation: Array.isArray(state.allocation) ? state.allocation : [],
     tasks: Array.isArray(state.tasks) ? state.tasks : [],
     createdAt: state.createdAt || new Date().toISOString(),
-    updatedAt: state.updatedAt || new Date().toISOString()
+    updatedAt: state.updatedAt || new Date().toISOString(),
+    clearedAt: state.clearedAt || null
   };
 }
 
@@ -48,7 +49,8 @@ function buildStateResponse(state) {
     counselors: normalized.counselors,
     allocation: normalized.allocation,
     tasks: normalized.tasks,
-    updatedAt: normalized.updatedAt || null
+    updatedAt: normalized.updatedAt || null,
+    clearedAt: normalized.clearedAt || null
   };
 }
 
@@ -166,6 +168,43 @@ app.put("/api/state", async (req, res) => {
     return res.json(buildStateResponse(nextState));
   } catch (error) {
     return res.status(500).json({ message: "Failed to update state", details: error.message });
+  }
+});
+
+app.put("/api/state/reset", async (_req, res) => {
+  try {
+    const currentState = await getStateDoc();
+    const now = new Date().toISOString();
+    const nextState = cacheStateDoc({
+      ...currentState,
+      leads: [],
+      allocation: [],
+      tasks: [],
+      updatedAt: now,
+      clearedAt: now
+    });
+
+    await stateCollection.updateOne(
+      { _id: STATE_DOC_ID },
+      {
+        $set: {
+          leads: [],
+          allocation: [],
+          tasks: [],
+          updatedAt: now,
+          clearedAt: now
+        },
+        $setOnInsert: {
+          counselors: [],
+          createdAt: now
+        }
+      },
+      { upsert: true }
+    );
+
+    return res.json(buildStateResponse(nextState));
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to reset state", details: error.message });
   }
 });
 

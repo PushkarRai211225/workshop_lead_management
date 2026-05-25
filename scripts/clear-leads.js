@@ -24,11 +24,12 @@ async function run() {
       {
         $set: {
           leads: [],
+          allocation: [],
+          tasks: [],
           updatedAt: new Date().toISOString()
         },
         $setOnInsert: {
           counselors: [],
-          allocation: [],
           createdAt: new Date().toISOString()
         }
       },
@@ -36,7 +37,7 @@ async function run() {
     );
 
     console.log(
-      `Cleared leads in ${MONGODB_DB_NAME}.${MONGODB_STATE_COLLECTION} (matched: ${result.matchedCount}, modified: ${result.modifiedCount}).`
+      `Cleared leads, allocation, and tasks in ${MONGODB_DB_NAME}.${MONGODB_STATE_COLLECTION} while preserving counselor credentials (matched: ${result.matchedCount}, modified: ${result.modifiedCount}).`
     );
   } finally {
     await client.close();

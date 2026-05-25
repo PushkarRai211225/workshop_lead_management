@@ -40,6 +40,10 @@ function writeStateSnapshot(snapshot) {
   localStorage.setItem(TASKS_KEY, JSON.stringify(Array.isArray(snapshot.tasks) ? snapshot.tasks : []));
 }
 
+export function replaceStateSnapshot(snapshot) {
+  writeStateSnapshot(snapshot);
+}
+
 function normalizeSnapshot(snapshot) {
   return {
     leads: Array.isArray(snapshot?.leads) ? snapshot.leads : [],
@@ -156,6 +160,7 @@ export async function bootstrapLocalState() {
           const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
           const serverTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
           const serverUpdatedAt = Number(new Date(payload.updatedAt || 0).getTime()) || 0;
+          const serverClearedAt = Number(new Date(payload.clearedAt || 0).getTime()) || 0;
           const lastLocalMutationAt = getLastStateMutatedAt();
 
           const serverLooksFresh =
@@ -164,7 +169,7 @@ export async function bootstrapLocalState() {
             && !serverAllocation.length
             && !serverTasks.length;
 
-          const preferLocalSnapshot = serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt);
+          const preferLocalSnapshot = !serverClearedAt && (serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt));
 
           const mergedLeads = preferLocalSnapshot && localSnapshot.leads.length ? localSnapshot.leads : serverLeads;
           const mergedCounselors = preferLocalSnapshot && localSnapshot.counselors.length ? localSnapshot.counselors : serverCounselors;
@@ -205,6 +210,7 @@ export async function bootstrapLocalState() {
     const serverAllocation = Array.isArray(payload.allocation) ? payload.allocation : [];
     const serverTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
     const serverUpdatedAt = Number(new Date(payload.updatedAt || 0).getTime()) || 0;
+    const serverClearedAt = Number(new Date(payload.clearedAt || 0).getTime()) || 0;
     const lastLocalMutationAt = getLastStateMutatedAt();
 
     const serverLooksFresh =
@@ -213,7 +219,7 @@ export async function bootstrapLocalState() {
       && !serverAllocation.length
       && !serverTasks.length;
 
-    const preferLocalSnapshot = serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt);
+    const preferLocalSnapshot = !serverClearedAt && (serverLooksFresh || (lastLocalMutationAt && lastLocalMutationAt >= serverUpdatedAt));
 
     // Prefer server state whenever it exists, even when arrays are empty.
     // Only fall back to local cache when the server is completely fresh.
