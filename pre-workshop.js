@@ -65,6 +65,91 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4000) {
   }
 }
 
+function deleteLead(leadId) {
+  const allLeads = getAllLeads();
+  const index = allLeads.findIndex((lead) => String(lead.id) === String(leadId));
+  if (index === -1) {
+    return false;
+  }
+
+  const confirmed = window.confirm("Delete this lead? This cannot be undone.");
+  if (!confirmed) {
+    return false;
+  }
+
+  allLeads.splice(index, 1);
+  saveAllLeads(allLeads);
+  setMessage("Lead deleted successfully.", false);
+  return true;
+}
+
+function deleteSelectedLeads(leads) {
+  const selectedIds = [...selectedLeadIds].map((leadId) => String(leadId));
+  if (!selectedIds.length) {
+    return false;
+  }
+
+  const confirmed = window.confirm(`Delete ${selectedIds.length} selected lead${selectedIds.length === 1 ? "" : "s"}? This cannot be undone.`);
+  if (!confirmed) {
+    return false;
+  }
+
+  const remainingLeads = leads.filter((lead) => !selectedIds.includes(String(lead.id)));
+  const removedCount = leads.length - remainingLeads.length;
+  if (!removedCount) {
+    return false;
+  }
+
+  saveAllLeads(remainingLeads);
+  clearSelectedLeadIds();
+  setMessage(`Deleted ${removedCount} selected lead${removedCount === 1 ? "" : "s"}.`, false);
+  return true;
+}
+
+function clearSelectedLeadIds() {
+  selectedLeadIds = new Set();
+}
+
+function getSelectableLeadIds(leads) {
+  return leads.map((lead) => String(lead.id));
+}
+
+function getSelectedLeadCount(leads) {
+  const selectableIds = new Set(getSelectableLeadIds(leads));
+  let count = 0;
+
+  selectedLeadIds.forEach((leadId) => {
+    if (selectableIds.has(String(leadId))) {
+      count += 1;
+    }
+  });
+
+  return count;
+}
+
+function syncSelectedLeadIds(leads) {
+  const selectableIds = new Set(getSelectableLeadIds(leads));
+  selectedLeadIds = new Set([...selectedLeadIds].filter((leadId) => selectableIds.has(String(leadId))));
+}
+
+function toggleLeadSelection(leadId, isChecked) {
+  const next = new Set(selectedLeadIds);
+  if (isChecked) {
+    next.add(String(leadId));
+  } else {
+    next.delete(String(leadId));
+  }
+  selectedLeadIds = next;
+}
+
+function toggleAllLeadsSelection(leads, isChecked) {
+  selectedLeadIds = isChecked ? new Set(getSelectableLeadIds(leads)) : new Set();
+}
+
+function isLeadSelected(leadId) {
+  return selectedLeadIds.has(String(leadId));
+}
+
 function isCounselorSession() {
   return session?.role === "counselor";
 }
@@ -152,6 +237,7 @@ const DEFAULT_ALLOCATION = [];
 
 let modalLeadId = null;
 let modalMode = "edit";
+let selectedLeadIds = new Set();
 
 const activityFields = ["modalDialed", "modalCallStatus", "modalWsStatus", "modalWhatsappInvite"];
 
@@ -1241,16 +1327,37 @@ function renderActivityStatusPanel(lead) {
       <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
       <button class="btn-update-status" data-lead-id="${lead.id}">Update</button>
       ${canCreateTasks ? `<button class="btn-ghost btn-task" type="button" data-lead-id="${lead.id}">Task</button>` : ""}
+      ${isAdmin ? `<button class="btn-delete" type="button" data-lead-id="${lead.id}">Delete</button>` : ""}
     </div>
   `;
 }
 
 function renderLeadTable(leads) {
+  syncSelectedLeadIds(leads);
+  const selectedCount = isAdmin ? getSelectedLeadCount(leads) : 0;
+  const allSelected = isAdmin && leads.length > 0 && selectedCount === leads.length;
+  const selectionColumn = isAdmin
+    ? `
+            <th class="selection-header">
+              <label class="bulk-select-control">
+                <input id="preBulkSelect" type="checkbox" ${allSelected ? "checked" : ""} />
+                <span>Select All</span>
+              </label>
+              <div class="bulk-select-actions">
+                <span class="selected-count">Selected: ${selectedCount}</span>
+                <button id="preBulkDelete" class="btn-delete bulk-delete-btn" type="button" ${selectedCount ? "" : "disabled"}>Delete Selected</button>
+              </div>
+            </th>
+    `
+    : "";
+  const emptyColspan = isAdmin ? 8 : 7;
+
   let html = `
     <div class="table-scroll">
       <table>
         <thead>
           <tr>
+            ${selectionColumn}
             <th>Lead Import Date</th>
             <th>Name</th>
             <th>Phone Number</th>
@@ -1264,12 +1371,17 @@ function renderLeadTable(leads) {
   `;
 
   if (!leads.length) {
-    html += `<tr><td colspan="7">No leads found for current filters.</td></tr>`;
+    html += `<tr><td colspan="${emptyColspan}">No leads found for current filters.</td></tr>`;
   } else {
     html += leads
       .map(
         (lead) => `
       <tr>
+        ${isAdmin ? `
+        <td>
+          <input class="lead-select-checkbox" type="checkbox" data-lead-id="${lead.id}" ${isLeadSelected(lead.id) ? "checked" : ""} />
+        </td>
+        ` : ""}
         <td>${lead.createdAt}</td>
         <td>${lead.name}</td>
         <td>${lead.phone || "-"}</td>
@@ -1304,6 +1416,43 @@ function renderLeadTable(leads) {
     button.onclick = () => {
       const leadId = button.getAttribute("data-lead-id");
       openTaskModal(leadId);
+    };
+  });
+
+  document.querySelectorAll(".btn-delete").forEach((button) => {
+    button.onclick = () => {
+      const leadId = button.getAttribute("data-lead-id");
+      if (leadId && deleteLead(leadId)) {
+        clearSelectedLeadIds();
+        renderAll();
+      }
+    };
+  });
+
+  const bulkSelect = document.getElementById("preBulkSelect");
+  if (bulkSelect) {
+    bulkSelect.onchange = (event) => {
+      toggleAllLeadsSelection(leads, event.target.checked);
+      renderAll();
+    };
+  }
+
+  const bulkDelete = document.getElementById("preBulkDelete");
+  if (bulkDelete) {
+    bulkDelete.onclick = () => {
+      if (deleteSelectedLeads(leads)) {
+        renderAll();
+      }
+    };
+  }
+
+  document.querySelectorAll(".lead-select-checkbox").forEach((checkbox) => {
+    checkbox.onchange = (event) => {
+      const leadId = checkbox.getAttribute("data-lead-id");
+      if (leadId) {
+        toggleLeadSelection(leadId, event.target.checked);
+        renderAll();
+      }
     };
   });
 }

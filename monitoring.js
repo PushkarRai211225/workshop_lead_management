@@ -17,6 +17,8 @@ const monitoringStartDateWrap = document.getElementById("monitoringStartDateWrap
 const monitoringEndDateWrap = document.getElementById("monitoringEndDateWrap");
 const applyMonitoringTimeline = document.getElementById("applyMonitoringTimeline");
 const resetMonitoringTimeline = document.getElementById("resetMonitoringTimeline");
+const exportMonitoringBtn = document.getElementById("exportMonitoringBtn");
+const monitoringExportMessage = document.getElementById("monitoringExportMessage");
 
 const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
 
@@ -68,6 +70,15 @@ function getCounselorIdentity() {
 
 function persistTimelineFilter() {
   savePersistedValue(TIMELINE_STORAGE_KEY, timelineFilter);
+}
+
+function setExportMessage(text, isError = true) {
+  if (!monitoringExportMessage) {
+    return;
+  }
+
+  monitoringExportMessage.textContent = text;
+  monitoringExportMessage.style.color = isError ? "#b42318" : "#0f766e";
 }
 
 function getScopedLeads(allLeads) {
@@ -339,6 +350,86 @@ function renderMonitoringTable(container, rows) {
   container.innerHTML = html;
 }
 
+function getTimelineLabel() {
+  if (timelineFilter.type === "overall") {
+    return "Overall";
+  }
+
+  if (timelineFilter.type === "today") {
+    return "Today";
+  }
+
+  if (timelineFilter.type === "yesterday") {
+    return "Yesterday";
+  }
+
+  if (timelineFilter.type === "week") {
+    return "Week";
+  }
+
+  if (timelineFilter.type === "custom") {
+    if (!timelineFilter.startDate || !timelineFilter.endDate) {
+      return "Custom Range";
+    }
+
+    return `${timelineFilter.startDate} to ${timelineFilter.endDate}`;
+  }
+
+  return "Monitoring Report";
+}
+
+function getVisibleKpiSnapshot() {
+  return Array.from(monitoringKpiSection.querySelectorAll(".kpi-card")).map((card) => ({
+    Metric: card.querySelector("p")?.textContent?.trim() || "",
+    Value: card.querySelector("h2")?.textContent?.trim() || ""
+  }));
+}
+
+function getVisibleTableSnapshot(container) {
+  const table = container?.querySelector("table");
+  if (!table) {
+    return { headers: [], rows: [] };
+  }
+
+  const headers = Array.from(table.querySelectorAll("thead th"))
+    .map((header) => header.textContent.trim())
+    .filter(Boolean);
+
+  const rows = Array.from(table.querySelectorAll("tbody tr")).map((row) =>
+    Array.from(row.querySelectorAll("td")).map((cell) => cell.textContent.trim())
+  );
+
+  return { headers, rows };
+}
+
+function exportMonitoringExcel() {
+  if (typeof XLSX === "undefined") {
+    setExportMessage("Excel export is unavailable because the spreadsheet library did not load.", true);
+    return;
+  }
+
+  const workbook = XLSX.utils.book_new();
+  const summaryRows = [
+    { Metric: "Timeline", Value: getTimelineLabel() },
+    ...getVisibleKpiSnapshot()
+  ];
+
+  const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+
+  const workshopTable = getVisibleTableSnapshot(preMonitoringTable);
+  const workshopSheet = XLSX.utils.aoa_to_sheet([workshopTable.headers, ...workshopTable.rows]);
+  XLSX.utils.book_append_sheet(workbook, workshopSheet, "Workshop Monitoring");
+
+  const admissionTable = getVisibleTableSnapshot(postMonitoringTable);
+  const admissionSheet = XLSX.utils.aoa_to_sheet([admissionTable.headers, ...admissionTable.rows]);
+  XLSX.utils.book_append_sheet(workbook, admissionSheet, "Admission Monitoring");
+
+  const fileName = `monitoring-report-${timelineFilter.type}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+  setExportMessage("Excel report exported successfully.", false);
+}
+
 function renderKpis(allLeads, preLeads, postLeads) {
   const overallActivity = allLeads.reduce(
     (sum, lead) => sum + (Number(lead.preActivityUpdates) || 0) + (Number(lead.postActivityUpdates) || 0),
@@ -378,6 +469,12 @@ function renderAll() {
 
   const postRows = buildRows(counselors, postLeads, "postActivityUpdates", "courseStatus");
   renderMonitoringTable(postMonitoringTable, postRows);
+
+  if (exportMonitoringBtn) {
+    exportMonitoringBtn.onclick = () => {
+      exportMonitoringExcel();
+    };
+  }
 }
 
 bindTimelineControls();

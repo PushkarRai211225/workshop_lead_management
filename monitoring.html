@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="dashboard-body">
   <div class="layout-root">
@@ -64,9 +65,11 @@
             <div class="filter-actions">
               <button id="applyMonitoringTimeline" class="btn-ghost" type="button">Apply</button>
               <button id="resetMonitoringTimeline" class="btn-ghost" type="button">Reset</button>
+              <button id="exportMonitoringBtn" class="btn-primary" type="button" data-admin-only="true">Export Excel</button>
             </div>
           </div>
         </div>
+        <p id="monitoringExportMessage" class="message" aria-live="polite"></p>
       </section>
 
       <section class="kpi-grid" id="monitoringKpiSection"></section>
