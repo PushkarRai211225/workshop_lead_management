@@ -1,3 +1,4 @@
+import { registerPageCleanup } from "./page-runtime.js";
 import { bootstrapLocalState, getCounselors, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
@@ -249,7 +250,7 @@ function formatBreakdown(items, key, options = {}) {
     .join(", ");
 }
 
-function getCounselors(allLeads) {
+function getCounselorBuckets(allLeads) {
   const names = [...new Set(allLeads.map((lead) => lead.counselor || "Unassigned"))]
     .filter((name) => name && name.trim())
     .sort((a, b) => a.localeCompare(b));
@@ -432,7 +433,7 @@ function renderAll() {
   const allLeads = getScopedLeads(timelineLeads);
   const preLeads = getPreLeads(allLeads);
   const postLeads = getPostLeads(allLeads);
-  const counselors = getCounselors(allLeads);
+  const counselors = getCounselorBuckets(allLeads);
 
   renderKpis(allLeads, preLeads, postLeads);
 
@@ -451,6 +452,7 @@ function renderAll() {
 
 bindTimelineControls();
 renderAll();
-startStatePolling(() => {
+const stopStatePolling = startStatePolling(() => {
   renderAll();
 });
+registerPageCleanup(stopStatePolling);

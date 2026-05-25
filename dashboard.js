@@ -1,3 +1,4 @@
+import { registerPageCleanup } from "./page-runtime.js";
 import { bootstrapLocalState, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
@@ -384,8 +385,19 @@ function hydrate(leads) {
 
 const leads = getLeads();
 hydrate(leads);
-startStatePolling(() => {
+const stopStatePolling = startStatePolling(() => {
   hydrate(getLeads());
+});
+registerPageCleanup(() => {
+  stopStatePolling();
+  if (trendChart) {
+    trendChart.destroy();
+    trendChart = null;
+  }
+  if (workshopPieChart) {
+    workshopPieChart.destroy();
+    workshopPieChart = null;
+  }
 });
 
 timelinePreset.addEventListener("change", () => {

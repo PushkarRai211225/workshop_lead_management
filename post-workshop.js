@@ -1,3 +1,4 @@
+import { registerPageCleanup } from "./page-runtime.js";
 import {
   bootstrapLocalState,
   getCounselors as getStoredCounselors,
@@ -946,11 +947,7 @@ function initPostWorkshopPage() {
     });
   });
 
-if (document.readyState === "loading") {
-  window.addEventListener("DOMContentLoaded", initPostWorkshopPage);
-} else {
-  initPostWorkshopPage();
-}
+initPostWorkshopPage();
 
 function renderAll() {
   const allLeads = getAllLeads();
@@ -966,6 +963,7 @@ function renderAll() {
 }
 
 renderAll();
-startStatePolling(() => {
+const stopStatePolling = startStatePolling(() => {
   renderAll();
 });
+registerPageCleanup(stopStatePolling);

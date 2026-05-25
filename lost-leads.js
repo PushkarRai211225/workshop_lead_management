@@ -1,3 +1,4 @@
+import { registerPageCleanup } from "./page-runtime.js";
 import { bootstrapLocalState, getCounselors, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
@@ -212,6 +213,7 @@ if (resetLostSearch) {
 }
 
 renderAll();
-startStatePolling(() => {
+const stopStatePolling = startStatePolling(() => {
   renderAll();
 });
+registerPageCleanup(stopStatePolling);

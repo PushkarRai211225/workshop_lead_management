@@ -1,3 +1,4 @@
+import { registerPageCleanup } from "./page-runtime.js";
 import {
   bootstrapLocalState,
   getAllocation as getStoredAllocation,
@@ -297,6 +298,7 @@ counselorForm.addEventListener("submit", async (event) => {
 });
 
 renderCounselorList();
-startStatePolling(() => {
+const stopStatePolling = startStatePolling(() => {
   renderCounselorList();
 });
+registerPageCleanup(stopStatePolling);

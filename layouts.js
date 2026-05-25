@@ -1,6 +1,12 @@
+import { runPageCleanup } from "./page-runtime.js";
 import { bootstrapLocalState, getSession, getStateField, logout, refreshSession } from "./state-sync.js";
 
-const current = window.location.pathname.split("/").pop() || "dashboard.html";
+let currentRoute = window.location.pathname.split("/").pop() || "dashboard.html";
+let activeSession = null;
+let activeNavigationToken = 0;
+const loadedAssetUrls = new Set(
+  Array.from(document.querySelectorAll("script[src]:not([type='module'])"), (script) => script.src)
+);
 
 const PAGE_PERMISSION_MAP = {
   "dashboard.html": "dashboard",
@@ -23,9 +29,52 @@ const DEFAULT_PERMISSIONS = {
 function applyActiveSidebarState() {
   const sidebarLinks = document.querySelectorAll(".sidebar-link");
   sidebarLinks.forEach((link) => {
-    const isActive = link.getAttribute("href") === current;
+    const isActive = link.getAttribute("href") === currentRoute;
     link.classList.toggle("active", isActive);
   });
+}
+
+const prefetchedRoutes = new Set();
+
+function prefetchRoute(href) {
+  const route = String(href || "").trim();
+  if (!route || prefetchedRoutes.has(route) || route.startsWith("http") || route.startsWith("#")) {
+    return;
+  }
+
+  prefetchedRoutes.add(route);
+
+  const link = document.createElement("link");
+  link.rel = "prefetch";
+  link.as = "document";
+  link.href = route;
+  document.head.appendChild(link);
+}
+
+function warmSidebarRoutes() {
+  const sidebarLinks = document.querySelectorAll(".sidebar-link[href]");
+
+  sidebarLinks.forEach((link) => {
+    const href = link.getAttribute("href") || "";
+    const warm = () => prefetchRoute(href);
+    link.addEventListener("pointerenter", warm, { once: true });
+    link.addEventListener("focus", warm, { once: true });
+  });
+
+  const eagerWarm = () => {
+    sidebarLinks.forEach((link) => {
+      const href = link.getAttribute("href") || "";
+      if (href && href !== currentRoute) {
+        prefetchRoute(href);
+      }
+    });
+  };
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(eagerWarm, { timeout: 1500 });
+  } else {
+    window.setTimeout(eagerWarm, 800);
+  }
 }
 
 function hydrateRoleTag(session) {
@@ -77,12 +126,12 @@ function applyRoleVisibility(session) {
 }
 
 function enforceAccess(session) {
-  if (current === "task-tracker.html" && session.role !== "counselor") {
+  if (currentRoute === "task-tracker.html" && session.role !== "counselor") {
     window.location.href = session.role === "admin" ? "dashboard.html" : "index.html";
     return false;
   }
 
-  if (current === "counselor-management.html" && session.role !== "admin") {
+  if (currentRoute === "counselor-management.html" && session.role !== "admin") {
     const fallback =
       session.role === "counselor"
         ? getFirstAllowedPage(getCounselorPermissions(session))
@@ -96,7 +145,7 @@ function enforceAccess(session) {
   }
 
   const permissions = getCounselorPermissions(session);
-  const permissionKey = PAGE_PERMISSION_MAP[current];
+  const permissionKey = PAGE_PERMISSION_MAP[currentRoute];
   if (!permissionKey) {
     return true;
   }
@@ -128,6 +177,166 @@ function bindLogout() {
   });
 }
 
+function isRoutablePage(href) {
+  return /^[^?#]+\.html(?:[?#].*)?$/i.test(String(href || ""));
+}
+
+function resolveRoute(href, baseUrl = window.location.href) {
+  const url = new URL(href, baseUrl);
+  return {
+    route: url.pathname.split("/").pop() || "dashboard.html",
+    url
+  };
+}
+
+function ensureExternalScript(sourceUrl) {
+  if (!sourceUrl || loadedAssetUrls.has(sourceUrl)) {
+    return Promise.resolve();
+  }
+
+  loadedAssetUrls.add(sourceUrl);
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = sourceUrl;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load ${sourceUrl}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureRouteAssets(targetDocument, targetUrl) {
+  const externalScripts = Array.from(targetDocument.querySelectorAll("script[src]:not([type='module'])"));
+
+  for (const script of externalScripts) {
+    const source = script.getAttribute("src");
+    if (!source) {
+      continue;
+    }
+
+    await ensureExternalScript(new URL(source, targetUrl).href);
+  }
+}
+
+async function loadRouteModules(targetDocument, targetUrl) {
+  const moduleScripts = Array.from(targetDocument.querySelectorAll("script[type='module'][src]"))
+    .map((script) => script.getAttribute("src"))
+    .filter((source) => source && !source.endsWith("layouts.js"));
+
+  for (const source of moduleScripts) {
+    const moduleUrl = new URL(source, targetUrl);
+    moduleUrl.searchParams.set("view", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    await import(moduleUrl.href);
+  }
+}
+
+async function navigateToRoute(href, options = {}) {
+  const { pushState = true } = options;
+  const { route, url } = resolveRoute(href);
+
+  if (!activeSession || !isRoutablePage(route) || route === currentRoute) {
+    return;
+  }
+
+  const navigationToken = ++activeNavigationToken;
+
+  try {
+    document.body.classList.add("route-loading");
+
+    const response = await fetch(url.href, {
+      credentials: "same-origin",
+      headers: {
+        Accept: "text/html"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Route request failed with status ${response.status}`);
+    }
+
+    const html = await response.text();
+    if (navigationToken !== activeNavigationToken) {
+      return;
+    }
+
+    const parser = new DOMParser();
+    const targetDocument = parser.parseFromString(html, "text/html");
+    const nextMainContent = targetDocument.querySelector(".main-content");
+    if (!nextMainContent) {
+      throw new Error(`Missing .main-content in ${route}`);
+    }
+
+    await ensureRouteAssets(targetDocument, url.href);
+    if (navigationToken !== activeNavigationToken) {
+      return;
+    }
+
+    runPageCleanup();
+
+    const currentMainContent = document.querySelector(".main-content");
+    if (!currentMainContent) {
+      throw new Error("Missing current .main-content container.");
+    }
+
+    currentMainContent.replaceWith(nextMainContent);
+    document.title = targetDocument.title || document.title;
+    document.body.className = targetDocument.body.className;
+
+    currentRoute = route;
+    applyRoleVisibility(activeSession);
+    const allowed = enforceAccess(activeSession);
+    if (!allowed) {
+      return;
+    }
+
+    applyActiveSidebarState();
+    hydrateRoleTag(activeSession);
+    bindLogout();
+
+    if (pushState) {
+      window.history.pushState({ route }, "", route);
+    }
+
+    window.scrollTo({ top: 0, behavior: "instant" });
+    await loadRouteModules(targetDocument, url.href);
+  } catch (error) {
+    console.error("Soft navigation failed, falling back to a full page load.", error);
+    window.location.href = href;
+  } finally {
+    document.body.classList.remove("route-loading");
+  }
+}
+
+function bindClientRouter() {
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest(".sidebar-link[href]");
+    if (!link) {
+      return;
+    }
+
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    const href = link.getAttribute("href") || "";
+    if (!isRoutablePage(href)) {
+      return;
+    }
+
+    event.preventDefault();
+    void navigateToRoute(href);
+  });
+
+  window.addEventListener("popstate", () => {
+    const route = window.location.pathname.split("/").pop() || "dashboard.html";
+    if (!isRoutablePage(route) || route === currentRoute) {
+      return;
+    }
+
+    void navigateToRoute(route, { pushState: false });
+  });
+}
+
 async function guardProtectedPages() {
   await bootstrapLocalState();
   const session = getSession() || await refreshSession().catch(() => null);
@@ -140,11 +349,14 @@ async function guardProtectedPages() {
 
 const session = await guardProtectedPages();
 if (session) {
+  activeSession = session;
   applyRoleVisibility(session);
   const allowed = enforceAccess(session);
   if (allowed) {
     applyActiveSidebarState();
+    warmSidebarRoutes();
     hydrateRoleTag(session);
     bindLogout();
+    bindClientRouter();
   }
 }

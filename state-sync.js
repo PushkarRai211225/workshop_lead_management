@@ -293,7 +293,13 @@ export async function saveTasks(tasks) {
 }
 
 export function startStatePolling(onRefresh, intervalMs = 5000) {
-  return setInterval(() => {
+  let isDisposed = false;
+
+  const runRefresh = () => {
+    if (isDisposed || document.hidden) {
+      return;
+    }
+
     void refreshState().then(() => {
       if (typeof onRefresh === "function") {
         onRefresh(getStateSnapshot());
@@ -301,5 +307,27 @@ export function startStatePolling(onRefresh, intervalMs = 5000) {
     }).catch(() => {
       // Keep the last rendered snapshot when the API is temporarily unavailable.
     });
-  }, intervalMs);
+  };
+
+  const intervalId = setInterval(runRefresh, intervalMs);
+
+  const handleVisibilityChange = () => {
+    if (!document.hidden) {
+      runRefresh();
+    }
+  };
+
+  const handlePageShow = () => {
+    runRefresh();
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("pageshow", handlePageShow);
+
+  return () => {
+    isDisposed = true;
+    clearInterval(intervalId);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.removeEventListener("pageshow", handlePageShow);
+  };
 }

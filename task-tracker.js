@@ -1,3 +1,4 @@
+import { registerPageCleanup } from "./page-runtime.js";
 import { bootstrapLocalState, getCounselors, getSession, startStatePolling } from "./state-sync.js";
 import { deleteTask, getTaskCategoryLabel, getTasksByCategory, TASK_CATEGORY, updateTask } from "./task-service.js";
 
@@ -193,6 +194,7 @@ function renderAll() {
 }
 
 renderAll();
-startStatePolling(() => {
+const stopStatePolling = startStatePolling(() => {
   renderAll();
 });
+registerPageCleanup(stopStatePolling);

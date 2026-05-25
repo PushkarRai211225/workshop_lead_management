@@ -1,3 +1,4 @@
+import { registerPageCleanup } from "./page-runtime.js";
 import {
   bootstrapLocalState,
   getAllocation as getStoredAllocation,
@@ -1805,11 +1806,7 @@ function initPreWorkshopPage() {
   setupAdminPanel();
 }
 
-if (document.readyState === "loading") {
-  window.addEventListener("DOMContentLoaded", initPreWorkshopPage);
-} else {
-  initPreWorkshopPage();
-}
+initPreWorkshopPage();
 
 function renderAll() {
   const allLeads = getAllLeads();
@@ -1843,6 +1840,7 @@ function renderAll() {
 }
 
 renderAll();
-startStatePolling(() => {
+const stopStatePolling = startStatePolling(() => {
   renderAll();
 });
+registerPageCleanup(stopStatePolling);
