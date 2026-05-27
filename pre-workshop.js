@@ -284,7 +284,7 @@ function toIsoDate(date = new Date()) {
 
 function setMessage(element, text, isError = true) {
   element.textContent = text;
-  element.style.color = isError ? "#b42318" : "#0f766e";
+  element.style.color = isError ? "var(--danger)" : "var(--success)";
 }
 
 function escapeHtml(value) {

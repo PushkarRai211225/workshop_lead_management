@@ -1,6 +1,8 @@
+import { initThemeSystem } from "./theme.js";
 import { bootstrapLocalState, getSession, login, refreshSession } from "./state-sync.js";
 
 await bootstrapLocalState();
+initThemeSystem();
 
 const existingSession = await refreshSession().catch(() => null);
 if (existingSession?.role) {

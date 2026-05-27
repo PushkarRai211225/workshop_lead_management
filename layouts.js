@@ -1,4 +1,5 @@
 import { runPageCleanup } from "./page-runtime.js";
+import { bindThemeControls, initThemeSystem } from "./theme.js";
 import { bootstrapLocalState, getSession, getStateField, logout, refreshSession, refreshState } from "./state-sync.js";
 
 let currentRoute = window.location.pathname.split("/").pop() || "dashboard.html";
@@ -344,6 +345,7 @@ function bindClientRouter() {
 
 async function guardProtectedPages() {
   await bootstrapLocalState();
+  initThemeSystem();
   const session = getSession() || await refreshSession().catch(() => null);
   if (!session?.role) {
     window.location.href = "index.html";
@@ -362,6 +364,7 @@ if (session) {
     warmSidebarRoutes();
     hydrateRoleTag(session);
     bindLogout();
+    bindThemeControls();
     bindClientRouter();
   }
 }

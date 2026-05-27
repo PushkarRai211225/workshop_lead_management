@@ -61,7 +61,7 @@ function setExportMessage(text, isError = true) {
   }
 
   monitoringExportMessage.textContent = text;
-  monitoringExportMessage.style.color = isError ? "#b42318" : "#0f766e";
+  monitoringExportMessage.style.color = isError ? "var(--danger)" : "var(--success)";
 }
 
 function getScopedLeads(allLeads) {

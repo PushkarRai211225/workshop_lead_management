@@ -72,7 +72,7 @@ function setMessage(text, isError = true) {
   }
 
   postActivityMessage.textContent = text;
-  postActivityMessage.style.color = isError ? "#b42318" : "#0f766e";
+  postActivityMessage.style.color = isError ? "var(--danger)" : "var(--success)";
 }
 
 function persistFilterState() {
@@ -864,7 +864,7 @@ function setTaskMessage(text, isError = true) {
   }
 
   taskMessage.textContent = text;
-  taskMessage.style.color = isError ? "#b42318" : "#0f766e";
+  taskMessage.style.color = isError ? "var(--danger)" : "var(--success)";
 }
 
 function closeTaskModal() {

@@ -1,4 +1,5 @@
 import { registerPageCleanup } from "./page-runtime.js";
+import { onThemeChange, readThemePalette } from "./theme.js";
 import { bootstrapLocalState, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
@@ -230,6 +231,7 @@ let workshopPieChart;
 function renderCharts(leads, range) {
   const trendCanvas = document.getElementById("newLeadsTrendChart");
   const pieCanvas = document.getElementById("workshopBreakdownChart");
+  const palette = readThemePalette();
 
   const trendDates = range.start && range.end ? getDateSequence(range.start, range.end) : [];
   const trendCountMap = new Map();
@@ -261,8 +263,8 @@ function renderCharts(leads, range) {
         {
           label: "New Leads",
           data: trendCounts,
-          borderColor: "#1e3a8a",
-          backgroundColor: "rgba(30, 58, 138, 0.12)",
+          borderColor: palette.chartLine,
+          backgroundColor: palette.chartFill,
           tension: 0.35,
           pointRadius: 4,
           pointHoverRadius: 5,
@@ -283,7 +285,7 @@ function renderCharts(leads, range) {
           ticks: { precision: 0 },
           beginAtZero: true,
           grid: {
-            color: "rgba(16,24,40,0.08)"
+            color: palette.chartGrid
           }
         },
         x: {
@@ -302,9 +304,9 @@ function renderCharts(leads, range) {
       datasets: [
         {
           data: Object.values(workshopMap),
-          backgroundColor: ["#1e3a8a", "#3b82f6", "#0f766e", "#94a3b8", "#ea580c"],
+          backgroundColor: palette.chartSeries,
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.85)"
+          borderColor: "rgba(255,255,255,0.72)"
         }
       ]
     },
@@ -380,10 +382,14 @@ function hydrate(leads) {
 
 const leads = getLeads();
 hydrate(leads);
+const stopThemeListener = onThemeChange(() => {
+  hydrate(getLeads());
+});
 const stopStatePolling = startStatePolling(() => {
   hydrate(getLeads());
 });
 registerPageCleanup(() => {
+  stopThemeListener();
   stopStatePolling();
   if (trendChart) {
     trendChart.destroy();

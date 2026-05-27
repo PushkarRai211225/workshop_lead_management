@@ -27,7 +27,7 @@ const counselorList = document.getElementById("counselorList");
 
 function setMessage(text, isError = true) {
   counselorFormMessage.textContent = text;
-  counselorFormMessage.style.color = isError ? "#b42318" : "#0f766e";
+  counselorFormMessage.style.color = isError ? "var(--danger)" : "var(--success)";
 }
 
 function getCounselors() {
