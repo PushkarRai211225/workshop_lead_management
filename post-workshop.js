@@ -333,7 +333,6 @@ function renderFilters(leads) {
         <div class="filter-item filter-item-cta">
           <label>&nbsp;</label>
           <div class="filter-actions">
-            <button id="postApplyFilters" class="btn-ghost" type="button">Apply</button>
             <button id="postResetFilters" class="btn-ghost" type="button">Reset</button>
           </div>
         </div>
@@ -357,64 +356,72 @@ function renderFilters(leads) {
   document.getElementById("postWorkshopCallingDialedSelect").onchange = (event) => {
     filter.workshopCallingDialed = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postWorkshopCallingCallStatusSelect").onchange = (event) => {
     filter.workshopCallingCallStatus = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postWorkshopCallingWsStatusSelect").onchange = (event) => {
     filter.workshopCallingWsStatus = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postWorkshopCallingWhatsappInviteSelect").onchange = (event) => {
     filter.workshopCallingWhatsappInvite = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postSearchLeadInput").oninput = (event) => {
     filter.search = event.target.value.trim();
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postCounselorSelect").onchange = (event) => {
     filter.counselor = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postActivityStatusSelect").onchange = (event) => {
     filter.activityStatus = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postWorkshopSelect").onchange = (event) => {
     filter.workshop = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postDialedSelect").onchange = (event) => {
     filter.postDialed = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postCoursePitchedSelect").onchange = (event) => {
     filter.coursePitched = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postCourseStatusSelect").onchange = (event) => {
     filter.courseStatus = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("postAdmissionStatusSelect").onchange = (event) => {
     filter.admissionStatus = event.target.value;
     persistFilterState();
-  };
-
-  document.getElementById("postApplyFilters").onclick = () => {
     renderAll();
   };
 

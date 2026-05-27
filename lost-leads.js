@@ -6,7 +6,6 @@ await bootstrapLocalState();
 const lostKpiSection = document.getElementById("lostKpiSection");
 const lostLeadTableSection = document.getElementById("lostLeadTableSection");
 const lostSearchInput = document.getElementById("lostSearchInput");
-const applyLostSearch = document.getElementById("applyLostSearch");
 const resetLostSearch = document.getElementById("resetLostSearch");
 
 const session = getSession();
@@ -186,18 +185,11 @@ function renderAll() {
   renderTable(lostLeads);
 }
 
-if (applyLostSearch) {
-  applyLostSearch.onclick = () => {
-    searchQuery = String(lostSearchInput?.value || "").trim();
-    persistSearchQuery();
-    renderAll();
-  };
-}
-
 if (lostSearchInput) {
   lostSearchInput.oninput = () => {
     searchQuery = String(lostSearchInput.value || "").trim();
     persistSearchQuery();
+    renderAll();
   };
 }
 

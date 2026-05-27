@@ -1362,7 +1362,6 @@ function renderFilters(leads) {
       <div class="filter-item filter-item-cta">
         <label>&nbsp;</label>
         <div class="filter-actions">
-          <button id="applyFilters" class="btn-ghost" type="button">Apply</button>
           <button id="resetFilters" class="btn-ghost" type="button">Reset</button>
         </div>
       </div>
@@ -1389,59 +1388,66 @@ function renderFilters(leads) {
     persistFilterState();
     document.getElementById("startDateWrap").classList.toggle("hidden", filter.timeline !== "custom");
     document.getElementById("endDateWrap").classList.toggle("hidden", filter.timeline !== "custom");
+    renderAll();
   };
 
   document.getElementById("startDateInput").onchange = (event) => {
     filter.startDate = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("endDateInput").onchange = (event) => {
     filter.endDate = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("searchLeadInput").oninput = (event) => {
     filter.search = event.target.value.trim();
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("counselorSelect").onchange = (event) => {
     filter.counselor = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("activityStatusSelect").onchange = (event) => {
     filter.activityStatus = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("workshopSelect").onchange = (event) => {
     filter.workshop = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("dialedSelect").onchange = (event) => {
     filter.dialed = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("callStatusSelect").onchange = (event) => {
     filter.callStatus = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("wsStatusSelect").onchange = (event) => {
     filter.wsStatus = event.target.value;
     persistFilterState();
+    renderAll();
   };
 
   document.getElementById("whatsappInviteSelect").onchange = (event) => {
     filter.whatsappInvite = event.target.value;
     persistFilterState();
-  };
-
-  document.getElementById("applyFilters").onclick = () => {
     renderAll();
   };
 

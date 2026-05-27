@@ -12,7 +12,6 @@ const monitoringStartDate = document.getElementById("monitoringStartDate");
 const monitoringEndDate = document.getElementById("monitoringEndDate");
 const monitoringStartDateWrap = document.getElementById("monitoringStartDateWrap");
 const monitoringEndDateWrap = document.getElementById("monitoringEndDateWrap");
-const applyMonitoringTimeline = document.getElementById("applyMonitoringTimeline");
 const resetMonitoringTimeline = document.getElementById("resetMonitoringTimeline");
 const exportMonitoringBtn = document.getElementById("exportMonitoringBtn");
 const monitoringExportMessage = document.getElementById("monitoringExportMessage");
@@ -205,19 +204,18 @@ function bindTimelineControls() {
     persistTimelineFilter();
     monitoringStartDateWrap.classList.toggle("hidden", timelineFilter.type !== "custom");
     monitoringEndDateWrap.classList.toggle("hidden", timelineFilter.type !== "custom");
+    renderAll();
   };
 
   monitoringStartDate.onchange = (event) => {
     timelineFilter.startDate = event.target.value;
     persistTimelineFilter();
+    renderAll();
   };
 
   monitoringEndDate.onchange = (event) => {
     timelineFilter.endDate = event.target.value;
     persistTimelineFilter();
-  };
-
-  applyMonitoringTimeline.onclick = () => {
     renderAll();
   };
 

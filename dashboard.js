@@ -13,7 +13,6 @@ const timelinePreset = document.getElementById("timelinePreset");
 const customRangeFields = document.getElementById("customRangeFields");
 const startDateInput = document.getElementById("startDate");
 const endDateInput = document.getElementById("endDate");
-const applyCustomRangeBtn = document.getElementById("applyCustomRange");
 const activeRangeLabel = document.getElementById("activeRangeLabel");
 
 const overallLeadsEl = document.getElementById("overallLeads");
@@ -410,13 +409,10 @@ timelinePreset.addEventListener("change", () => {
 
 startDateInput.addEventListener("change", () => {
   persistTimelineState();
+  hydrate(getLeads());
 });
 
 endDateInput.addEventListener("change", () => {
-  persistTimelineState();
-});
-
-applyCustomRangeBtn.addEventListener("click", () => {
   persistTimelineState();
   hydrate(getLeads());
 });

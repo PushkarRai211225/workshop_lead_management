@@ -298,6 +298,7 @@ async function navigateToRoute(href, options = {}) {
     applyActiveSidebarState();
     hydrateRoleTag(activeSession);
     bindLogout();
+    bindThemeControls();
 
     if (pushState) {
       window.history.pushState({ route }, "", route);
