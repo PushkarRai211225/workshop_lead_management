@@ -997,7 +997,17 @@ function renderAll() {
   const filteredLeads = filterLeads(admissionLeads);
 
   renderKpis(filteredLeads);
+  const _focusedId = document.activeElement?.id;
+  const _selStart = document.activeElement?.selectionStart;
+  const _selEnd = document.activeElement?.selectionEnd;
   renderFilters(admissionLeads);
+  if (_focusedId) {
+    const _el = document.getElementById(_focusedId);
+    if (_el) {
+      _el.focus();
+      if (_selStart != null) _el.setSelectionRange(_selStart, _selEnd);
+    }
+  }
   renderLeadTable(filteredLeads);
 }
 

@@ -4,8 +4,6 @@ import { bootstrapLocalState, getLeads as getStoredLeads, getSession, loadPersis
 
 await bootstrapLocalState();
 
-const interestedPanelNote = document.getElementById("interestedPanelNote");
-const interestedWorkshopList = document.getElementById("interestedWorkshopList");
 const trendRangeText = document.getElementById("trendRangeText");
 const pieRangeText = document.getElementById("pieRangeText");
 
@@ -26,9 +24,6 @@ if (!session || !session.role) {
 }
 
 const isAdmin = session.role === "admin";
-interestedPanelNote.textContent = isAdmin
-  ? "Live view of interested leads by workshop and potential follow-ups."
-  : "Read-only insight for counselors to prioritize warm prospects.";
 
 const TIMELINE_STORAGE_KEY = "dvWorkshopDashboardTimeline";
 const DEFAULT_TIMELINE_STATE = {
@@ -324,50 +319,7 @@ function renderCharts(leads, range) {
   pieRangeText.textContent = `${range.label} breakdown`;
 }
 
-function renderInterestedPanel(leads) {
-  const interestedLeads = leads.filter((lead) => String(lead.courseStatus || "").trim() === "Interested");
 
-  if (!interestedLeads.length) {
-    interestedWorkshopList.innerHTML = `
-      <article class="interested-item empty-state">
-        <h4>No interested leads yet</h4>
-        <p>Once leads move to Interested status, workshop-wise insights will appear here.</p>
-      </article>
-    `;
-    return;
-  }
-
-  const groupedByWorkshop = interestedLeads.reduce((acc, lead) => {
-    if (!acc[lead.workshop]) {
-      acc[lead.workshop] = [];
-    }
-    acc[lead.workshop].push(lead);
-    return acc;
-  }, {});
-
-  const maxCount = Math.max(...Object.values(groupedByWorkshop).map((items) => items.length), 1);
-
-  interestedWorkshopList.innerHTML = Object.entries(groupedByWorkshop)
-    .sort(([, a], [, b]) => b.length - a.length)
-    .map(([workshop, workshopLeads]) => {
-      const ratio = Math.round((workshopLeads.length / maxCount) * 100);
-      const names = workshopLeads.map((lead) => lead.name).join(", ");
-
-      return `
-      <article class="interested-item">
-        <div class="interested-row">
-          <h4>${workshop}</h4>
-          <span class="interested-count">${workshopLeads.length} Interested</span>
-        </div>
-        <div class="interested-meter">
-          <span style="width: ${ratio}%"></span>
-        </div>
-        <p title="${names}">${names}</p>
-      </article>
-      `;
-    })
-    .join("");
-}
 
 function hydrate(leads) {
   const range = getTimelineRange(leads);
@@ -376,7 +328,6 @@ function hydrate(leads) {
   activeRangeLabel.textContent = `${range.label} | Leads in range: ${filteredLeads.length}`;
   buildKpis(filteredLeads);
   renderCharts(filteredLeads, range);
-  renderInterestedPanel(filteredLeads);
 }
 
 const leads = getLeads();
