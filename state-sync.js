@@ -12,6 +12,7 @@ let pendingStateUpdate = Promise.resolve();
 const preferenceCache = new Map();
 let lastStateRefreshAt = 0;
 let lastSuccessfulMutationAt = 0;
+let lastStateETag = null; // tracks the ETag returned by the last GET /api/state
 // How long (ms) after a confirmed server write to suppress polling so a stale
 // serverless-instance cache cannot revert a lead that was just updated.
 const MUTATION_POLL_COOLDOWN_MS = 20000;
@@ -101,16 +102,31 @@ export function replaceStateSnapshot(snapshot) {
 }
 
 export async function refreshState() {
+  const headers = { Accept: "application/json" };
+  // Send the ETag from the previous response so the server can return 304 when
+  // the state has not changed, saving the full payload transfer on every poll.
+  if (lastStateETag) {
+    headers["If-None-Match"] = lastStateETag;
+  }
+
   const { response, payload } = await fetchJson("/api/state", {
     method: "GET",
-    headers: {
-      Accept: "application/json"
-    }
+    headers
   });
+
+  // 304 Not Modified — state unchanged, keep what we have.
+  if (response.status === 304) {
+    lastStateRefreshAt = Date.now();
+    return getStateSnapshot();
+  }
 
   if (!response.ok) {
     throw new Error(payload?.message || "Failed to fetch state.");
   }
+
+  // Capture the new ETag for the next conditional request.
+  const etag = response.headers.get("etag");
+  if (etag) lastStateETag = etag;
 
   return setCurrentState(payload);
 }

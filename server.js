@@ -1,7 +1,8 @@
 require("dotenv").config();
-const express = require("express");
-const path = require("path");
-const crypto = require("crypto");
+const express    = require("express");
+const path       = require("path");
+const crypto     = require("crypto");
+const compress   = require("compression");
 const { MongoClient } = require("mongodb");
 
 const app = express();
@@ -32,6 +33,8 @@ const DEFAULT_PERMISSIONS = {
   monitoring: true
 };
 
+// Compress all responses ≥ 1 KB — dramatically reduces /api/state payload size.
+app.use(compress({ threshold: 1024 }));
 app.use(express.json({ limit: "5mb" }));
 
 app.get("/favicon.ico", (_req, res) => {
@@ -50,9 +53,33 @@ let stateCollection;
 let sessionCollection;
 let preferenceCollection;
 let mongoInitPromise;
-let cachedStateDoc = null;
-let cachedStateDocAt = 0;
+let cachedStateDoc    = null;
+let cachedStateDocAt  = 0;
 const STATE_CACHE_TTL_MS = 10000; // Re-read from Mongo after 10 s so stale instances pick up writes from other instances
+
+// In-process session cache — avoids a MongoDB round-trip on every authenticated
+// request.  Entries expire after 60 s so a deleted/expired session is noticed
+// within a minute without hammering the DB.
+const SESSION_CACHE_TTL_MS = 60000;
+const sessionCache = new Map(); // token → { session, cachedAt }
+
+function getCachedSession(token) {
+  const entry = sessionCache.get(token);
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > SESSION_CACHE_TTL_MS) {
+    sessionCache.delete(token);
+    return null;
+  }
+  return entry.session;
+}
+
+function setCachedSession(token, session) {
+  sessionCache.set(token, { session, cachedAt: Date.now() });
+}
+
+function evictCachedSession(token) {
+  sessionCache.delete(token);
+}
 
 function parseCookies(headerValue = "") {
   return headerValue
@@ -96,6 +123,13 @@ async function getSessionFromRequest(req) {
     return null;
   }
 
+  // Serve from in-process cache to avoid a MongoDB round-trip on every
+  // authenticated API call (e.g. every 15 s state poll hits this path).
+  const cached = getCachedSession(token);
+  if (cached) {
+    return { token, session: cached };
+  }
+
   const sessionDoc = await sessionCollection.findOne({
     token,
     expiresAt: { $gt: new Date().toISOString() }
@@ -105,10 +139,9 @@ async function getSessionFromRequest(req) {
     return null;
   }
 
-  return {
-    token,
-    session: sanitizeSession(sessionDoc)
-  };
+  const session = sanitizeSession(sessionDoc);
+  setCachedSession(token, session);
+  return { token, session };
 }
 
 async function persistSession(res, session) {
@@ -177,12 +210,27 @@ async function initMongo() {
 
   if (!mongoInitPromise) {
     mongoInitPromise = (async () => {
-      const client = new MongoClient(MONGODB_URI);
+      const client = new MongoClient(MONGODB_URI, {
+        // Keep a small warm pool so subsequent requests reuse the same TCP
+        // connection instead of paying the TLS handshake cost every time.
+        maxPoolSize: 5,
+        minPoolSize: 1,
+        // Fail fast on cold starts rather than hanging for 30 s.
+        serverSelectionTimeoutMS: 8000,
+        connectTimeoutMS: 8000,
+        socketTimeoutMS: 30000
+      });
       await client.connect();
       const db = client.db(MONGODB_DB_NAME);
-      stateCollection = db.collection(MONGODB_STATE_COLLECTION);
-      sessionCollection = db.collection(MONGODB_SESSION_COLLECTION);
+      stateCollection      = db.collection(MONGODB_STATE_COLLECTION);
+      sessionCollection    = db.collection(MONGODB_SESSION_COLLECTION);
       preferenceCollection = db.collection(MONGODB_PREFERENCE_COLLECTION);
+      // Ensure a fast index on the session token so every auth'd request
+      // resolves in a single indexed lookup instead of a full collection scan.
+      await sessionCollection.createIndex(
+        { token: 1 },
+        { unique: true, background: true }
+      ).catch(() => undefined); // ignore if index already exists
     })();
   }
 
@@ -348,6 +396,7 @@ app.post("/api/auth/logout", async (req, res) => {
     const cookies = parseCookies(req.headers.cookie || "");
     const token = String(cookies[SESSION_COOKIE_NAME] || "").trim();
     if (token) {
+      evictCachedSession(token);
       await sessionCollection.deleteOne({ token });
     }
 
@@ -419,9 +468,18 @@ app.put("/api/preferences/:scope", async (req, res) => {
   }
 });
 
-app.get("/api/state", async (_req, res) => {
+app.get("/api/state", async (req, res) => {
   try {
     const state = await getStateDoc();
+    // Use updatedAt as a cheap ETag so clients can send If-None-Match and get
+    // a 304 Not Modified when nothing has changed — avoiding re-transferring
+    // the full (potentially 200 KB) payload on every 15 s poll.
+    const etag = `"${state.updatedAt || "init"}"`.replace(/\s/g, "_");
+    res.setHeader("ETag", etag);
+    res.setHeader("Cache-Control", "no-cache"); // allow conditional GET, no blind caching
+    if (req.headers["if-none-match"] === etag) {
+      return res.status(304).end();
+    }
     res.json(buildStateResponse(state));
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch state", details: error.message });

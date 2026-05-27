@@ -10,7 +10,7 @@
  *   threshold the overlay is automatically dismissed.
  */
 
-const PING_INTERVAL_MS        = 5000;   // measure every 5 s
+const PING_INTERVAL_MS        = 8000;   // measure every 8 s (was 5 s — reduced to cut background requests)
 const HIGH_PING_THRESHOLD_MS  = 300;    // ms — block above this
 const PING_REQUEST_TIMEOUT_MS = 8000;   // abort if server doesn't respond in 8 s
 // Require this many back-to-back good readings before unblocking, so a brief

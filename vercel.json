@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "regions": ["bom1"],
   "builds": [
     {
       "src": "server.js",
@@ -15,6 +16,20 @@
     }
   ],
   "routes": [
+    {
+      "src": "/api/ping",
+      "dest": "server.js",
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    },
+    {
+      "src": "/(.*\\.(css|js|png|jpg|jpeg|svg|ico|webp|woff2?))",
+      "dest": "server.js",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
     {
       "src": "/(.*)",
       "dest": "server.js"
