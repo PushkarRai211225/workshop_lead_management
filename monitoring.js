@@ -99,10 +99,8 @@ function normalizeLeadFields(leads) {
     lead.postStatusUpdated = typeof lead.postStatusUpdated === "boolean" ? lead.postStatusUpdated : false;
     lead.workshopActivityHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
     lead.admissionActivityHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
-    lead.preActivityUpdates = lead.workshopActivityHistory.length
-      || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
-    lead.postActivityUpdates = lead.admissionActivityHistory.length
-      || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
+    lead.preActivityUpdates = lead.workshopActivityHistory.length > 0 ? 1 : 0;
+    lead.postActivityUpdates = lead.admissionActivityHistory.length > 0 ? 1 : 0;
   });
 }
 
@@ -187,8 +185,8 @@ function applyTimelineFilter(leads) {
 
       return {
         ...lead,
-        preActivityUpdates: workshopInRange.length,
-        postActivityUpdates: admissionInRange.length
+        preActivityUpdates: workshopInRange.length > 0 ? 1 : 0,
+        postActivityUpdates: admissionInRange.length > 0 ? 1 : 0
       };
     })
     .filter((lead) => lead.preActivityUpdates > 0 || lead.postActivityUpdates > 0);
