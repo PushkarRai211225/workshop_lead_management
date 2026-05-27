@@ -391,9 +391,27 @@ function getAllLeads() {
 }
 
 function saveAllLeads(leads) {
-  persistLeads(leads).catch((err) => {
-    console.error("[pre-workshop] Failed to persist leads to server:", err);
-  });
+  return persistLeads(leads);
+}
+
+function showToast(message, isError = false) {
+  let container = document.getElementById("dvToastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "dvToastContainer";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${isError ? "toast--error" : "toast--success"}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("toast--fade");
+    setTimeout(() => toast.remove(), 350);
+  }, 3000);
 }
 
 async function deleteWholeLeadDataset() {
@@ -1445,10 +1463,11 @@ function renderFilters(leads) {
 }
 
 function renderActivityStatusPanel(lead) {
+  const hasActivity = Array.isArray(lead.workshopActivityHistory) && lead.workshopActivityHistory.length > 0;
   return `
     <div class="activity-panel">
       <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
-      <button class="btn-update-status" data-lead-id="${lead.id}">Update</button>
+      <button class="btn-update-status${hasActivity ? " btn-update-status--active" : ""}" data-lead-id="${lead.id}">Update</button>
       ${canCreateTasks ? `<button class="btn-ghost btn-task" type="button" data-lead-id="${lead.id}">Task</button>` : ""}
       ${isAdmin ? `<button class="btn-delete" type="button" data-lead-id="${lead.id}">Delete</button>` : ""}
     </div>
@@ -1608,17 +1627,17 @@ function populateActivityModal(lead) {
   document.getElementById("modalWhatsappInvite").value = lead.whatsappInvite;
 }
 
-function updateLeadActivity(leadId, updates) {
+async function updateLeadActivity(leadId, updates) {
   const allLeads = getAllLeads();
   const index = allLeads.findIndex((lead) => String(lead.id) === String(leadId));
   if (index === -1) {
-    return;
+    return false;
   }
 
   if (isCounselorSession()) {
     const owner = String(allLeads[index].counselor || "").trim().toLowerCase();
     if (owner !== getCounselorIdentity()) {
-      return;
+      return false;
     }
   }
 
@@ -1641,7 +1660,20 @@ function updateLeadActivity(leadId, updates) {
     preActivityUpdates: nextWorkshopHistory.length
   };
 
-  saveAllLeads(allLeads);
+  try {
+    const result = await saveAllLeads(allLeads);
+    if (result && result.ok === false) {
+      showToast("Failed to save activity. Please check your connection and try again.", true);
+      return false;
+    }
+
+    showToast("Workshop Calling activity saved successfully.", false);
+    return true;
+  } catch (err) {
+    console.error("[pre-workshop] Failed to persist leads:", err);
+    showToast("Failed to save activity. Please check your connection and try again.", true);
+    return false;
+  }
 }
 
 function openActivityStatusModal(leadId) {
@@ -1773,13 +1805,13 @@ function initPreWorkshopPage() {
   const modal = document.getElementById("activityStatusModal");
   if (modal) {
     document.getElementById("closeModalBtn").onclick = closeActivityStatusModal;
-    document.getElementById("activityStatusForm").onsubmit = (event) => {
+    document.getElementById("activityStatusForm").onsubmit = async (event) => {
       event.preventDefault();
       if (!modalLeadId) {
         return;
       }
 
-      updateLeadActivity(modalLeadId, {
+      const saved = await updateLeadActivity(modalLeadId, {
         dialed: document.getElementById("modalDialed").value,
         callStatus: document.getElementById("modalCallStatus").value,
         wsStatus: document.getElementById("modalWsStatus").value,
@@ -1787,7 +1819,9 @@ function initPreWorkshopPage() {
       });
 
       closeActivityStatusModal();
-      renderAll();
+      if (saved) {
+        renderAll();
+      }
     };
   }
 

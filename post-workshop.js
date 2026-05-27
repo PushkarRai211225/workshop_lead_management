@@ -156,9 +156,27 @@ function getAllLeads() {
 }
 
 function saveAllLeads(leads) {
-  persistLeads(leads).catch((err) => {
-    console.error("[post-workshop] Failed to persist leads to server:", err);
-  });
+  return persistLeads(leads);
+}
+
+function showToast(message, isError = false) {
+  let container = document.getElementById("dvToastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "dvToastContainer";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${isError ? "toast--error" : "toast--success"}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("toast--fade");
+    setTimeout(() => toast.remove(), 350);
+  }, 3000);
 }
 
 function isLostLead(lead) {
@@ -479,10 +497,11 @@ function filterLeads(leads) {
 }
 
 function renderActivityPanel(lead) {
+  const hasActivity = Array.isArray(lead.admissionActivityHistory) && lead.admissionActivityHistory.length > 0;
   return `
     <div class="activity-panel">
       <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
-      <button class="btn-update-status" data-lead-id="${lead.id}">Update</button>
+      <button class="btn-update-status${hasActivity ? " btn-update-status--active" : ""}" data-lead-id="${lead.id}">Update</button>
       ${canCreateTasks ? `<button class="btn-ghost btn-task" type="button" data-lead-id="${lead.id}">Task</button>` : ""}
       ${isAdmin ? `<button class="btn-delete" type="button" data-lead-id="${lead.id}">Delete</button>` : ""}
     </div>
@@ -640,7 +659,7 @@ function populatePostActivityModal(lead) {
   document.getElementById("modalAdmissionStatus").value = lead.admissionStatus;
 }
 
-function updatePostActivity(leadId, updates) {
+async function updatePostActivity(leadId, updates) {
   const allLeads = getAllLeads();
   const index = allLeads.findIndex((lead) => String(lead.id) === String(leadId));
   if (index === -1) {
@@ -687,14 +706,25 @@ function updatePostActivity(leadId, updates) {
     postStatusUpdated: true
   };
 
-  saveAllLeads(allLeads);
-  setMessage(
-    updates.courseStatus === "Not Interested"
-      ? "Lead moved to Lost Leads."
-      : "Admission Calling activity saved successfully.",
-    false
-  );
-  return true;
+  try {
+    const result = await saveAllLeads(allLeads);
+    if (result && result.ok === false) {
+      showToast("Failed to save activity. Please check your connection and try again.", true);
+      return false;
+    }
+
+    showToast(
+      updates.courseStatus === "Not Interested"
+        ? "Lead moved to Lost Leads."
+        : "Admission Calling activity saved successfully.",
+      false
+    );
+    return true;
+  } catch (err) {
+    console.error("[post-workshop] Failed to persist leads:", err);
+    showToast("Failed to save activity. Please check your connection and try again.", true);
+    return false;
+  }
 }
 
 function deleteLead(leadId) {
@@ -912,13 +942,13 @@ function initPostWorkshopPage() {
   }
 
   document.getElementById("closePostModalBtn").onclick = closePostModal;
-  document.getElementById("postActivityForm").onsubmit = (event) => {
+  document.getElementById("postActivityForm").onsubmit = async (event) => {
     event.preventDefault();
     if (!modalLeadId) {
       return;
     }
 
-    const saved = updatePostActivity(modalLeadId, {
+    const saved = await updatePostActivity(modalLeadId, {
       postDialed: document.getElementById("modalPostDialed").value,
       coursePitched: document.getElementById("modalCoursePitched").value,
       courseStatus: document.getElementById("modalCourseStatus").value,

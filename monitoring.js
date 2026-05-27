@@ -112,62 +112,86 @@ function getAllLeads() {
   return leads;
 }
 
-function applyTimelineFilter(leads) {
+function getTimelineRange() {
   if (timelineFilter.type === "overall") {
-    return leads;
+    return null;
   }
 
+  const now = new Date();
+
   if (timelineFilter.type === "today") {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return leads.filter((lead) => {
-      const created = new Date(lead.createdAt);
-      created.setHours(0, 0, 0, 0);
-      return created.getTime() === today.getTime();
-    });
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   }
 
   if (timelineFilter.type === "yesterday") {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-    return leads.filter((lead) => {
-      const created = new Date(lead.createdAt);
-      created.setHours(0, 0, 0, 0);
-      return created.getTime() === yesterday.getTime();
-    });
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    const start = new Date(d);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(d);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   }
 
   if (timelineFilter.type === "week") {
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-    const start = new Date();
+    const start = new Date(now);
     start.setDate(start.getDate() - 6);
     start.setHours(0, 0, 0, 0);
-
-    return leads.filter((lead) => {
-      const created = new Date(lead.createdAt);
-      return created >= start && created <= end;
-    });
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   }
 
   if (timelineFilter.type === "custom") {
     if (!timelineFilter.startDate || !timelineFilter.endDate) {
-      return leads;
+      return null;
     }
 
     const start = new Date(timelineFilter.startDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(timelineFilter.endDate);
     end.setHours(23, 59, 59, 999);
-
-    return leads.filter((lead) => {
-      const created = new Date(lead.createdAt);
-      return created >= start && created <= end;
-    });
+    return { start, end };
   }
 
-  return leads;
+  return null;
+}
+
+function applyTimelineFilter(leads) {
+  const range = getTimelineRange();
+
+  // "overall" — return all leads with their full activity counts unchanged
+  if (!range) {
+    return leads;
+  }
+
+  const { start, end } = range;
+
+  return leads
+    .map((lead) => {
+      const workshopHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
+      const admissionHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
+
+      const workshopInRange = workshopHistory.filter((entry) => {
+        const d = new Date(entry.at);
+        return d >= start && d <= end;
+      });
+      const admissionInRange = admissionHistory.filter((entry) => {
+        const d = new Date(entry.at);
+        return d >= start && d <= end;
+      });
+
+      return {
+        ...lead,
+        preActivityUpdates: workshopInRange.length,
+        postActivityUpdates: admissionInRange.length
+      };
+    })
+    .filter((lead) => lead.preActivityUpdates > 0 || lead.postActivityUpdates > 0);
 }
 
 function bindTimelineControls() {
@@ -404,13 +428,9 @@ function exportMonitoringExcel() {
 }
 
 function renderKpis(allLeads, preLeads, postLeads) {
-  const overallActivity = allLeads.reduce(
-    (sum, lead) => sum + (Number(lead.preActivityUpdates) || 0) + (Number(lead.postActivityUpdates) || 0),
-    0
-  );
-
   const preActivity = preLeads.reduce((sum, lead) => sum + (Number(lead.preActivityUpdates) || 0), 0);
   const postActivity = postLeads.reduce((sum, lead) => sum + (Number(lead.postActivityUpdates) || 0), 0);
+  const overallActivity = preActivity + postActivity;
 
   monitoringKpiSection.innerHTML = `
     <article class="card kpi-card">
