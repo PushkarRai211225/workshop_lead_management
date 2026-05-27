@@ -60,22 +60,19 @@ function getLeads() {
 }
 
 function buildKpis(leads) {
-  const totals = leads.reduce(
-    (accumulator, lead) => {
-      accumulator.total += 1;
-      const status = getLeadStatus(lead);
-      if (status === "New") accumulator.newLeads += 1;
-      if (status === "Interested") accumulator.interested += 1;
-      if (status === "Converted") accumulator.converted += 1;
-      return accumulator;
-    },
-    { total: 0, newLeads: 0, interested: 0, converted: 0 }
-  );
+  let interested = 0;
+  let converted = 0;
 
-  overallLeadsEl.textContent = totals.total;
-  newLeadsEl.textContent = totals.newLeads;
-  interestedLeadsEl.textContent = totals.interested;
-  convertedLeadsEl.textContent = totals.converted;
+  leads.forEach((lead) => {
+    if (String(lead.courseStatus || "").trim() === "Interested") interested += 1;
+    const admStatus = String(lead.admissionStatus || "").trim();
+    if (admStatus === "Enrolled" || admStatus === "Won") converted += 1;
+  });
+
+  overallLeadsEl.textContent = leads.length;
+  newLeadsEl.textContent = leads.length;
+  interestedLeadsEl.textContent = interested;
+  convertedLeadsEl.textContent = converted;
 }
 
 function toDateKey(date) {
@@ -237,9 +234,7 @@ function renderCharts(leads, range) {
   const trendDates = range.start && range.end ? getDateSequence(range.start, range.end) : [];
   const trendCountMap = new Map();
   leads.forEach((lead) => {
-    if (getLeadStatus(lead) === "New") {
-      trendCountMap.set(lead.createdAt, (trendCountMap.get(lead.createdAt) || 0) + 1);
-    }
+    trendCountMap.set(lead.createdAt, (trendCountMap.get(lead.createdAt) || 0) + 1);
   });
 
   const trendCounts = trendDates.map((day) => {
@@ -329,7 +324,7 @@ function renderCharts(leads, range) {
 }
 
 function renderInterestedPanel(leads) {
-  const interestedLeads = leads.filter((lead) => getLeadStatus(lead) === "Interested");
+  const interestedLeads = leads.filter((lead) => String(lead.courseStatus || "").trim() === "Interested");
 
   if (!interestedLeads.length) {
     interestedWorkshopList.innerHTML = `
