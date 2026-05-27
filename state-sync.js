@@ -335,6 +335,17 @@ export function startStatePolling(onRefresh, intervalMs = 15000) {
     }
     activePoll = true;
     try {
+      // Capture the current pending-update promise so we can detect if new mutations
+      // are queued while we are waiting.
+      const pendingAtStart = pendingStateUpdate;
+      await pendingAtStart;
+
+      // If more mutations were queued while we were waiting, skip this poll cycle.
+      // A stale GET response must not overwrite writes that are still in flight.
+      if (pendingStateUpdate !== pendingAtStart) {
+        return;
+      }
+
       await refreshState();
     } catch (_e) {
       // Ignore transient network errors — the next poll or navigation will recover.
