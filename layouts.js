@@ -1,6 +1,7 @@
 import { runPageCleanup } from "./page-runtime.js";
 import { bindThemeControls, initThemeSystem } from "./theme.js";
 import { bootstrapLocalState, getSession, getStateField, logout, refreshSession, refreshState } from "./state-sync.js";
+import { startPingMonitor, mountPingPill } from "./ping-monitor.js";
 
 let currentRoute = window.location.pathname.split("/").pop() || "dashboard.html";
 let activeSession = null;
@@ -299,6 +300,7 @@ async function navigateToRoute(href, options = {}) {
     hydrateRoleTag(activeSession);
     bindLogout();
     bindThemeControls();
+    mountPingPill();
 
     if (pushState) {
       window.history.pushState({ route }, "", route);
@@ -367,5 +369,6 @@ if (session) {
     bindLogout();
     bindThemeControls();
     bindClientRouter();
+    startPingMonitor();
   }
 }

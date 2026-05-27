@@ -38,6 +38,12 @@ app.get("/favicon.ico", (_req, res) => {
   res.status(204).end();
 });
 
+// Lightweight ping endpoint used by the client-side latency monitor.
+// No auth required — it must respond as fast as possible with minimal payload.
+app.get("/api/ping", (_req, res) => {
+  res.json({ ok: true });
+});
+
 app.use(express.static(ROOT_DIR));
 
 let stateCollection;

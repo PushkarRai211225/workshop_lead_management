@@ -11,6 +11,10 @@ let bootstrapPromise = null;
 let pendingStateUpdate = Promise.resolve();
 const preferenceCache = new Map();
 let lastStateRefreshAt = 0;
+let lastSuccessfulMutationAt = 0;
+// How long (ms) after a confirmed server write to suppress polling so a stale
+// serverless-instance cache cannot revert a lead that was just updated.
+const MUTATION_POLL_COOLDOWN_MS = 20000;
 const stateSubscribers = new Set();
 
 function notifyStateSubscribers() {
@@ -142,6 +146,11 @@ export async function updateStateFields(fields) {
     }
 
     setCurrentState(payload);
+    // Record the time of this confirmed server write so the polling loop can
+    // skip refreshState() during the cooldown window.  This prevents a stale
+    // in-memory cache on another Vercel serverless instance from overwriting
+    // the update we just confirmed was persisted to MongoDB.
+    lastSuccessfulMutationAt = Date.now();
     return { ok: true, payload: getStateSnapshot() };
   }).catch((error) => {
     // On network failure refresh to restore correct server state.
@@ -343,6 +352,17 @@ export function startStatePolling(onRefresh, intervalMs = 15000) {
       // If more mutations were queued while we were waiting, skip this poll cycle.
       // A stale GET response must not overwrite writes that are still in flight.
       if (pendingStateUpdate !== pendingAtStart) {
+        return;
+      }
+
+      // If a mutation was confirmed recently, skip this poll.  On Vercel the
+      // serverless function that handles GET /api/state may be a different
+      // instance from the one that processed the PUT, and its in-memory cache
+      // can still hold the pre-update state for up to SERVER_CACHE_TTL (10 s).
+      // Suppressing polls for MUTATION_POLL_COOLDOWN_MS (20 s) ensures we
+      // never hand a stale cache response back to the client and undo a lead
+      // activity update that was already confirmed by the server.
+      if (Date.now() - lastSuccessfulMutationAt < MUTATION_POLL_COOLDOWN_MS) {
         return;
       }
 
