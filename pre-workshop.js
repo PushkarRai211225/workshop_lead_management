@@ -261,7 +261,8 @@ const DEFAULT_FILTER = {
   dialed: "All",
   callStatus: "All",
   wsStatus: "All",
-  whatsappInvite: "All"
+  whatsappInvite: "All",
+  whatsappGroupStatus: "All"
 };
 
 const FILTER_STORAGE_KEY = "dvWorkshopWorkshopCallingFilters";
@@ -276,7 +277,7 @@ let modalLeadId = null;
 let modalMode = "edit";
 let selectedLeadIds = new Set();
 
-const activityFields = ["modalDialed", "modalCallStatus", "modalWsStatus", "modalWhatsappInvite"];
+const activityFields = ["modalDialed", "modalCallStatus", "modalWsStatus", "modalWhatsappInvite", "modalWhatsappGroupStatus"];
 
 function toIsoDate(date = new Date()) {
   return date.toISOString().slice(0, 10);
@@ -381,6 +382,8 @@ function normalizeLeadFields(leads) {
       || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
     lead.postActivityUpdates = lead.admissionActivityHistory.length
       || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
+    lead.whatsappGroupStatus = lead.whatsappGroupStatus || "";
+    lead.leadNotes = Array.isArray(lead.leadNotes) ? lead.leadNotes : [];
   });
 }
 
@@ -879,6 +882,8 @@ function buildLeadFromImportRow(row, id, workshopName, sourceFileName) {
     postActivityUpdates: 0,
     workshopActivityHistory: [],
     admissionActivityHistory: [],
+    whatsappGroupStatus: "",
+    leadNotes: [],
     importSourceFiles: [String(sourceFileName || "").trim()].filter(Boolean),
     importSourceSheets: [String(row.__workshopName || "").trim()].filter(Boolean)
   };
@@ -1106,7 +1111,7 @@ function isPostWorkshopLead(lead) {
 }
 
 function isLostLead(lead) {
-  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
+  return lead.postStatusUpdated && lead.courseStatus === "Not Interested";
 }
 
 function getPreWorkshopLeads(allLeads) {
@@ -1239,6 +1244,10 @@ function filterLeads(leads) {
     filtered = filtered.filter((lead) => lead.whatsappInvite === filter.whatsappInvite);
   }
 
+  if (filter.whatsappGroupStatus !== "All") {
+    filtered = filtered.filter((lead) => lead.whatsappGroupStatus === filter.whatsappGroupStatus);
+  }
+
   return filtered;
 }
 
@@ -1359,6 +1368,15 @@ function renderFilters(leads) {
         </select>
       </div>
 
+      <div class="filter-item">
+        <label for="whatsappGroupStatusSelect">WhatsApp Group Status</label>
+        <select id="whatsappGroupStatusSelect">
+          <option value="All">All</option>
+          <option value="Joined">Joined</option>
+          <option value="Not Joined">Not Joined</option>
+        </select>
+      </div>
+
       <div class="filter-item filter-item-cta">
         <label>&nbsp;</label>
         <div class="filter-actions">
@@ -1379,6 +1397,8 @@ function renderFilters(leads) {
   document.getElementById("callStatusSelect").value = filter.callStatus;
   document.getElementById("wsStatusSelect").value = filter.wsStatus;
   document.getElementById("whatsappInviteSelect").value = filter.whatsappInvite;
+
+  document.getElementById("whatsappGroupStatusSelect").value = filter.whatsappGroupStatus;
 
   document.getElementById("startDateWrap").classList.toggle("hidden", filter.timeline !== "custom");
   document.getElementById("endDateWrap").classList.toggle("hidden", filter.timeline !== "custom");
@@ -1451,6 +1471,12 @@ function renderFilters(leads) {
     renderAll();
   };
 
+  document.getElementById("whatsappGroupStatusSelect").onchange = (event) => {
+    filter.whatsappGroupStatus = event.target.value;
+    persistFilterState();
+    renderAll();
+  };
+
 
   if (deleteImportedFileBtn) {
     deleteImportedFileBtn.onclick = () => {
@@ -1470,10 +1496,12 @@ function renderFilters(leads) {
 
 function renderActivityStatusPanel(lead) {
   const hasActivity = Array.isArray(lead.workshopActivityHistory) && lead.workshopActivityHistory.length > 0;
+  const noteCount = Array.isArray(lead.leadNotes) ? lead.leadNotes.length : 0;
   return `
     <div class="activity-panel">
       <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
       <button class="btn-update-status${hasActivity ? " btn-update-status--active" : ""}" data-lead-id="${lead.id}">Update</button>
+      <button class="btn-ghost btn-notes" type="button" data-lead-id="${lead.id}">Notes${noteCount ? ` (${noteCount})` : ""}</button>
       ${canCreateTasks ? `<button class="btn-ghost btn-task" type="button" data-lead-id="${lead.id}">Task</button>` : ""}
       ${isAdmin ? `<button class="btn-delete" type="button" data-lead-id="${lead.id}">Delete</button>` : ""}
     </div>
@@ -1560,6 +1588,13 @@ function renderLeadTable(leads) {
     };
   });
 
+  document.querySelectorAll(".btn-notes").forEach((button) => {
+    button.onclick = () => {
+      const leadId = button.getAttribute("data-lead-id");
+      openNotesModal(leadId);
+    };
+  });
+
   document.querySelectorAll(".btn-task").forEach((button) => {
     button.onclick = () => {
       const leadId = button.getAttribute("data-lead-id");
@@ -1631,6 +1666,7 @@ function populateActivityModal(lead) {
   document.getElementById("modalCallStatus").value = lead.callStatus;
   document.getElementById("modalWsStatus").value = lead.wsStatus;
   document.getElementById("modalWhatsappInvite").value = lead.whatsappInvite;
+  document.getElementById("modalWhatsappGroupStatus").value = lead.whatsappGroupStatus;
 }
 
 async function updateLeadActivity(leadId, updates) {
@@ -1730,6 +1766,104 @@ function closeActivityStatusModal() {
   setActivityModalMode("edit");
 }
 
+let notesLeadId = null;
+
+function openNotesModal(leadId) {
+  notesLeadId = leadId;
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+  if (!lead) {
+    return;
+  }
+
+  const notes = Array.isArray(lead.leadNotes) ? lead.leadNotes : [];
+  const notesListSection = document.getElementById("notesListSection");
+  if (notesListSection) {
+    notesListSection.innerHTML = notes.length
+      ? notes.map((note, idx) => `
+        <div class="note-item">
+          <span class="note-text">${note.text}</span>
+          <span class="note-meta">${note.by || ""}${note.by && note.at ? " \u2013 " : ""}${note.at || ""}</span>
+          <button type="button" class="btn-ghost btn-delete-note" data-note-index="${idx}" style="font-size:0.75rem;padding:2px 6px;">Delete</button>
+        </div>`).join("")
+      : "<p class=\"block-help\">No notes yet. Add one below.</p>";
+
+    notesListSection.querySelectorAll(".btn-delete-note").forEach((btn) => {
+      btn.onclick = () => {
+        const idx = Number(btn.getAttribute("data-note-index"));
+        void deleteNote(leadId, idx);
+      };
+    });
+  }
+
+  const newNoteInput = document.getElementById("newNoteInput");
+  if (newNoteInput) {
+    newNoteInput.value = "";
+  }
+
+  const notesModal = document.getElementById("notesModal");
+  if (notesModal) {
+    notesModal.classList.remove("hidden");
+  }
+}
+
+function closeNotesModal() {
+  const notesModal = document.getElementById("notesModal");
+  if (notesModal) {
+    notesModal.classList.add("hidden");
+  }
+  notesLeadId = null;
+}
+
+async function saveNote() {
+  const newNoteInput = document.getElementById("newNoteInput");
+  const text = newNoteInput ? newNoteInput.value.trim() : "";
+  if (!text || !notesLeadId) {
+    return;
+  }
+
+  const allLeads = getAllLeads();
+  const index = allLeads.findIndex((item) => String(item.id) === String(notesLeadId));
+  if (index === -1) {
+    return;
+  }
+
+  const notes = Array.isArray(allLeads[index].leadNotes) ? allLeads[index].leadNotes : [];
+  allLeads[index] = {
+    ...allLeads[index],
+    leadNotes: [
+      ...notes,
+      {
+        text,
+        at: new Date().toISOString().slice(0, 10),
+        by: session?.name || "Unknown"
+      }
+    ]
+  };
+
+  await saveAllLeads(allLeads);
+  openNotesModal(notesLeadId);
+  showToast("Note saved.", false);
+}
+
+async function deleteNote(leadId, noteIndex) {
+  const allLeads = getAllLeads();
+  const index = allLeads.findIndex((item) => String(item.id) === String(leadId));
+  if (index === -1) {
+    return;
+  }
+
+  const notes = Array.isArray(allLeads[index].leadNotes) ? allLeads[index].leadNotes : [];
+  allLeads[index] = {
+    ...allLeads[index],
+    leadNotes: notes.filter((_, idx) => idx !== noteIndex)
+  };
+
+  await saveAllLeads(allLeads);
+  openNotesModal(leadId);
+  showToast("Note deleted.", false);
+}
+
 function setTaskMessage(text, isError = true) {
   if (!taskMessage) {
     return;
@@ -1765,6 +1899,10 @@ function openTaskModal(leadId) {
   taskCategoryInput.value = TASK_CATEGORY.workshop;
   taskLeadNameInput.value = lead.name || "";
   taskCounselorInput.value = lead.counselor || "Unassigned";
+  const taskLeadPhoneInput = document.getElementById("taskLeadPhone");
+  if (taskLeadPhoneInput) {
+    taskLeadPhoneInput.value = lead.phone || "-";
+  }
   taskTitleInput.value = `Follow up with ${lead.name || "lead"}`;
   taskNotesInput.value = "";
   taskDueDateInput.value = "";
@@ -1795,6 +1933,7 @@ async function handleTaskSubmit(event) {
   await createTask({
     leadId: lead.id,
     leadName: lead.name,
+    leadPhone: lead.phone || "",
     leadCounselor: lead.counselor || "Unassigned",
     counselor: session?.name || lead.counselor || "Unassigned",
     category: TASK_CATEGORY.workshop,
@@ -1821,7 +1960,8 @@ function initPreWorkshopPage() {
         dialed: document.getElementById("modalDialed").value,
         callStatus: document.getElementById("modalCallStatus").value,
         wsStatus: document.getElementById("modalWsStatus").value,
-        whatsappInvite: document.getElementById("modalWhatsappInvite").value
+        whatsappInvite: document.getElementById("modalWhatsappInvite").value,
+        whatsappGroupStatus: document.getElementById("modalWhatsappGroupStatus").value
       });
 
       closeActivityStatusModal();
@@ -1834,6 +1974,14 @@ function initPreWorkshopPage() {
   if (taskModal && taskForm) {
     document.getElementById("closeTaskModalBtn").onclick = closeTaskModal;
     taskForm.onsubmit = handleTaskSubmit;
+  }
+
+  const notesModal = document.getElementById("notesModal");
+  if (notesModal) {
+    document.getElementById("closeNotesModalBtn").onclick = closeNotesModal;
+    document.getElementById("saveNoteBtn").onclick = () => {
+      void saveNote();
+    };
   }
 
   document.querySelectorAll(".btn-task").forEach((button) => {

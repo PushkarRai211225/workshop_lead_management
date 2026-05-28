@@ -100,6 +100,24 @@
                 <option value="Won">Won</option>
               </select>
             </div>
+            <div class="modal-row">
+              <label for="modalPostCallStatus">Call Status</label>
+              <select id="modalPostCallStatus">
+                <option value="">Select</option>
+                <option value="Connected">Connected</option>
+                <option value="CBL">CBL</option>
+                <option value="DNP">DNP</option>
+                <option value="CNC">CNC</option>
+              </select>
+            </div>
+            <div class="modal-row">
+              <label for="modalWorkshopJoiningStatus">Workshop Joining Status</label>
+              <select id="modalWorkshopJoiningStatus">
+                <option value="">Select</option>
+                <option value="Joined">Joined</option>
+                <option value="Not Joined">Not Joined</option>
+              </select>
+            </div>
             <div class="modal-actions">
               <button type="submit" id="savePostActivityBtn" class="btn-primary">Save</button>
               <button type="button" id="closePostModalBtn" class="btn-ghost">Cancel</button>
@@ -117,6 +135,10 @@
             <div class="modal-row">
               <label for="taskLeadName">Lead</label>
               <input id="taskLeadName" type="text" disabled />
+            </div>
+            <div class="modal-row">
+              <label for="taskLeadPhone">Phone Number</label>
+              <input id="taskLeadPhone" type="text" disabled />
             </div>
             <div class="modal-row">
               <label for="taskCounselor">Counselor</label>
@@ -140,6 +162,21 @@
               <button type="button" id="closeTaskModalBtn" class="btn-ghost">Cancel</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <div id="notesModal" class="modal hidden">
+      <div class="modal-content card">
+        <h3>Lead Notes</h3>
+        <div id="notesListSection"></div>
+        <div class="modal-row">
+          <label for="newNoteInput">Add Note</label>
+          <textarea id="newNoteInput" rows="3" placeholder="Enter note..."></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="saveNoteBtn" class="btn-primary">Save Note</button>
+          <button type="button" id="closeNotesModalBtn" class="btn-ghost">Close</button>
         </div>
       </div>
     </div>

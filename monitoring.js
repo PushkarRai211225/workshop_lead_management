@@ -98,8 +98,17 @@ function normalizeLeadFields(leads) {
     lead.postStatusUpdated = typeof lead.postStatusUpdated === "boolean" ? lead.postStatusUpdated : false;
     lead.workshopActivityHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
     lead.admissionActivityHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
-    lead.preActivityUpdates = lead.workshopActivityHistory.length > 0 ? 1 : 0;
-    lead.postActivityUpdates = lead.admissionActivityHistory.length > 0 ? 1 : 0;
+    lead.whatsappGroupStatus = lead.whatsappGroupStatus || "";
+    lead.preActivityUpdates = new Set(
+      lead.workshopActivityHistory
+        .map((entry) => (entry.at ? new Date(entry.at).toISOString().slice(0, 10) : null))
+        .filter(Boolean)
+    ).size;
+    lead.postActivityUpdates = new Set(
+      lead.admissionActivityHistory
+        .map((entry) => (entry.at ? new Date(entry.at).toISOString().slice(0, 10) : null))
+        .filter(Boolean)
+    ).size;
   });
 }
 
@@ -184,8 +193,8 @@ function applyTimelineFilter(leads) {
 
       return {
         ...lead,
-        preActivityUpdates: workshopInRange.length > 0 ? 1 : 0,
-        postActivityUpdates: admissionInRange.length > 0 ? 1 : 0
+        preActivityUpdates: new Set(workshopInRange.map((e) => new Date(e.at).toISOString().slice(0, 10))).size,
+        postActivityUpdates: new Set(admissionInRange.map((e) => new Date(e.at).toISOString().slice(0, 10))).size
       };
     })
     .filter((lead) => lead.preActivityUpdates > 0 || lead.postActivityUpdates > 0);
@@ -236,7 +245,7 @@ function isPostWorkshopLead(lead) {
 }
 
 function isLostLead(lead) {
-  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
+  return lead.postStatusUpdated && lead.courseStatus === "Not Interested";
 }
 
 function getPreLeads(allLeads) {
@@ -244,7 +253,7 @@ function getPreLeads(allLeads) {
 }
 
 function getPostLeads(allLeads) {
-  return allLeads.filter((lead) => !isLostLead(lead));
+  return allLeads;
 }
 
 function formatBreakdown(items, key, options = {}) {
@@ -278,15 +287,74 @@ function getCounselorBuckets(allLeads) {
   return names.length ? names : ["Unassigned"];
 }
 
-function buildRows(counselors, stageLeads, activityKey, statusKey) {
+function buildPreRows(counselors, preLeads, rawAllLeads, range) {
   return counselors.map((counselor) => {
-    const leads = stageLeads.filter((lead) => (lead.counselor || "Unassigned") === counselor);
-    const activityLeads = leads.filter((lead) => (Number(lead[activityKey]) || 0) > 0);
-    const activities = activityLeads.reduce((sum, lead) => sum + (Number(lead[activityKey]) || 0), 0);
-    const interested = activityLeads.filter((lead) => lead[statusKey] === "Interested").length;
-    const notInterested = activityLeads.filter((lead) => lead[statusKey] === "Not Interested").length;
+    const leads = preLeads.filter((lead) => (lead.counselor || "Unassigned") === counselor);
+    const rawLeads = rawAllLeads.filter((lead) => (lead.counselor || "Unassigned") === counselor);
+    const activityLeads = leads.filter((lead) => (Number(lead.preActivityUpdates) || 0) > 0);
+    const activities = activityLeads.reduce((sum, lead) => sum + (Number(lead.preActivityUpdates) || 0), 0);
+    const interested = activityLeads.filter((lead) => lead.wsStatus === "Interested").length;
+    const notInterested = activityLeads.filter((lead) => lead.wsStatus === "Not Interested").length;
+    const whatsappJoined = leads.filter((lead) => lead.whatsappGroupStatus === "Joined").length;
+
+    let newLeads, freshActivities, oldLeadActivities;
+    if (!range) {
+      newLeads = rawLeads.length;
+      freshActivities = activities;
+      oldLeadActivities = 0;
+    } else {
+      const { start, end } = range;
+      newLeads = rawLeads.filter((lead) => {
+        const created = new Date(lead.createdAt);
+        return created >= start && created <= end;
+      }).length;
+      const freshActivityLeads = activityLeads.filter((lead) => new Date(lead.createdAt) >= start);
+      freshActivities = freshActivityLeads.reduce((sum, lead) => sum + (Number(lead.preActivityUpdates) || 0), 0);
+      const oldActivityLeads = activityLeads.filter((lead) => new Date(lead.createdAt) < start);
+      oldLeadActivities = oldActivityLeads.reduce((sum, lead) => sum + (Number(lead.preActivityUpdates) || 0), 0);
+    }
+
+    return {
+      counselor,
+      activities,
+      workshops: formatBreakdown(activityLeads, "workshop"),
+      interested,
+      notInterested,
+      whatsappJoined,
+      newLeads,
+      freshActivities,
+      oldLeadActivities
+    };
+  });
+}
+
+function buildPostRows(counselors, postLeads, rawAllLeads, range) {
+  return counselors.map((counselor) => {
+    const leads = postLeads.filter((lead) => (lead.counselor || "Unassigned") === counselor);
+    const rawLeads = rawAllLeads.filter((lead) => (lead.counselor || "Unassigned") === counselor);
+    const activityLeads = leads.filter((lead) => (Number(lead.postActivityUpdates) || 0) > 0);
+    const activities = activityLeads.reduce((sum, lead) => sum + (Number(lead.postActivityUpdates) || 0), 0);
+    const interested = activityLeads.filter((lead) => lead.courseStatus === "Interested").length;
+    const notInterested = leads.filter((lead) => lead.courseStatus === "Not Interested").length;
     const enrolled = activityLeads.filter((lead) => lead.admissionStatus === "Enrolled").length;
     const won = activityLeads.filter((lead) => lead.admissionStatus === "Won").length;
+
+    let newLeads, freshActivities, oldLeadActivities;
+    if (!range) {
+      newLeads = rawLeads.length;
+      freshActivities = activities;
+      oldLeadActivities = 0;
+    } else {
+      const { start, end } = range;
+      newLeads = rawLeads.filter((lead) => {
+        const created = new Date(lead.createdAt);
+        return created >= start && created <= end;
+      }).length;
+      const freshActivityLeads = activityLeads.filter((lead) => new Date(lead.createdAt) >= start);
+      freshActivities = freshActivityLeads.reduce((sum, lead) => sum + (Number(lead.postActivityUpdates) || 0), 0);
+      const oldActivityLeads = activityLeads.filter((lead) => new Date(lead.createdAt) < start);
+      oldLeadActivities = oldActivityLeads.reduce((sum, lead) => sum + (Number(lead.postActivityUpdates) || 0), 0);
+    }
 
     return {
       counselor,
@@ -295,12 +363,62 @@ function buildRows(counselors, stageLeads, activityKey, statusKey) {
       interested,
       notInterested,
       enrolled,
-      won
+      won,
+      newLeads,
+      freshActivities,
+      oldLeadActivities
     };
   });
 }
 
-function renderMonitoringTable(container, rows) {
+function renderPreMonitoringTable(container, rows) {
+  const html = `
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Counselor Name</th>
+            <th>Total Activities Completed</th>
+            <th>Workshop-wise Activity Breakdown</th>
+            <th>Interested Leads</th>
+            <th>Not Interested Leads</th>
+            <th>WhatsApp Group Joined</th>
+            <th>New Leads Received</th>
+            <th>Fresh Lead Activities</th>
+            <th>Old Lead Activities</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            rows.length
+              ? rows
+                  .map(
+                    (row) => `
+                    <tr>
+                      <td>${row.counselor}</td>
+                      <td>${row.activities}</td>
+                      <td>${row.workshops}</td>
+                      <td>${row.interested}</td>
+                      <td>${row.notInterested}</td>
+                      <td>${row.whatsappJoined}</td>
+                      <td>${row.newLeads}</td>
+                      <td>${row.freshActivities}</td>
+                      <td>${row.oldLeadActivities}</td>
+                    </tr>
+                  `
+                  )
+                  .join("")
+              : `<tr><td colspan="9">No monitoring data available.</td></tr>`
+          }
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function renderPostMonitoringTable(container, rows) {
   const html = `
     <div class="table-scroll">
       <table>
@@ -313,6 +431,9 @@ function renderMonitoringTable(container, rows) {
             <th>Not Interested Leads</th>
             <th>Enrolled</th>
             <th>Won</th>
+            <th>New Leads Received</th>
+            <th>Fresh Lead Activities</th>
+            <th>Old Lead Activities</th>
           </tr>
         </thead>
         <tbody>
@@ -329,11 +450,14 @@ function renderMonitoringTable(container, rows) {
                       <td>${row.notInterested}</td>
                       <td>${row.enrolled}</td>
                       <td>${row.won}</td>
+                      <td>${row.newLeads}</td>
+                      <td>${row.freshActivities}</td>
+                      <td>${row.oldLeadActivities}</td>
                     </tr>
                   `
                   )
                   .join("")
-              : `<tr><td colspan="7">No monitoring data available.</td></tr>`
+              : `<tr><td colspan="10">No monitoring data available.</td></tr>`
           }
         </tbody>
       </table>
@@ -423,10 +547,33 @@ function exportMonitoringExcel() {
   setExportMessage("Excel report exported successfully.", false);
 }
 
-function renderKpis(allLeads, preLeads, postLeads) {
+function renderKpis(allLeads, preLeads, postLeads, rawAllLeads, range) {
   const preActivity = preLeads.reduce((sum, lead) => sum + (Number(lead.preActivityUpdates) || 0), 0);
   const postActivity = postLeads.reduce((sum, lead) => sum + (Number(lead.postActivityUpdates) || 0), 0);
   const overallActivity = preActivity + postActivity;
+
+  let totalNewLeads, totalFreshActivities, totalOldTouched;
+  if (!range) {
+    totalNewLeads = rawAllLeads.length;
+    totalFreshActivities = "-";
+    totalOldTouched = "-";
+  } else {
+    const { start, end } = range;
+    totalNewLeads = rawAllLeads.filter((lead) => {
+      const created = new Date(lead.createdAt);
+      return created >= start && created <= end;
+    }).length;
+    const freshLeads = allLeads.filter((lead) => new Date(lead.createdAt) >= start);
+    totalFreshActivities = freshLeads.reduce(
+      (sum, lead) => sum + (Number(lead.preActivityUpdates) || 0) + (Number(lead.postActivityUpdates) || 0),
+      0
+    );
+    const oldLeadsInRange = allLeads.filter((lead) => new Date(lead.createdAt) < start);
+    totalOldTouched = oldLeadsInRange.reduce(
+      (sum, lead) => sum + (Number(lead.preActivityUpdates) || 0) + (Number(lead.postActivityUpdates) || 0),
+      0
+    );
+  }
 
   monitoringKpiSection.innerHTML = `
     <article class="card kpi-card">
@@ -441,23 +588,37 @@ function renderKpis(allLeads, preLeads, postLeads) {
       <p>Admission Calling Activity</p>
       <h2>${postActivity}</h2>
     </article>
+    <article class="card kpi-card">
+      <p>New Leads Received</p>
+      <h2>${totalNewLeads}</h2>
+    </article>
+    <article class="card kpi-card">
+      <p>Fresh Lead Activities</p>
+      <h2>${totalFreshActivities}</h2>
+    </article>
+    <article class="card kpi-card">
+      <p>Old Lead Activities</p>
+      <h2>${totalOldTouched}</h2>
+    </article>
   `;
 }
 
 function renderAll() {
+  const range = getTimelineRange();
+  const rawAllLeads = getScopedLeads(getAllLeads());
   const timelineLeads = applyTimelineFilter(getAllLeads());
   const allLeads = getScopedLeads(timelineLeads);
   const preLeads = getPreLeads(allLeads);
   const postLeads = getPostLeads(allLeads);
   const counselors = getCounselorBuckets(allLeads);
 
-  renderKpis(allLeads, preLeads, postLeads);
+  renderKpis(allLeads, preLeads, postLeads, rawAllLeads, range);
 
-  const preRows = buildRows(counselors, preLeads, "preActivityUpdates", "wsStatus");
-  renderMonitoringTable(preMonitoringTable, preRows);
+  const preRows = buildPreRows(counselors, preLeads, rawAllLeads, range);
+  renderPreMonitoringTable(preMonitoringTable, preRows);
 
-  const postRows = buildRows(counselors, postLeads, "postActivityUpdates", "courseStatus");
-  renderMonitoringTable(postMonitoringTable, postRows);
+  const postRows = buildPostRows(counselors, postLeads, rawAllLeads, range);
+  renderPostMonitoringTable(postMonitoringTable, postRows);
 
   if (exportMonitoringBtn) {
     exportMonitoringBtn.onclick = () => {

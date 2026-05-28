@@ -26,6 +26,7 @@ export function normalizeTask(task = {}) {
     id: String(task.id || createTaskId()),
     leadId: String(task.leadId || ""),
     leadName: String(task.leadName || "").trim(),
+    leadPhone: String(task.leadPhone || "").trim(),
     leadCounselor: String(task.leadCounselor || "").trim(),
     counselor: String(task.counselor || "").trim(),
     category,

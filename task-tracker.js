@@ -94,7 +94,7 @@ function renderTaskTable(tasks, emptyMessage) {
               (task) => `
                 <tr>
                   <td>
-                    <strong>${task.leadName || "-"}</strong><br />
+                    <strong>${task.leadName || "-"}</strong>${task.leadPhone ? `<br /><span class="muted-text">${task.leadPhone}</span>` : ""}<br />
                     <span class="muted-text">${task.category === TASK_CATEGORY.workshop ? getTaskCategoryLabel(TASK_CATEGORY.workshop) : getTaskCategoryLabel(TASK_CATEGORY.admission)}</span>
                   </td>
                   <td>${task.leadCounselor || task.counselor || "Unassigned"}</td>

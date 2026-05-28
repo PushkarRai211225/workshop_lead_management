@@ -42,10 +42,13 @@ const DEFAULT_FILTER = {
   coursePitched: "All",
   admissionStatus: "All",
   courseStatus: "All",
+  postCallStatus: "All",
+  workshopJoiningStatus: "All",
   workshopCallingDialed: "All",
   workshopCallingCallStatus: "All",
   workshopCallingWsStatus: "All",
-  workshopCallingWhatsappInvite: "All"
+  workshopCallingWhatsappInvite: "All",
+  workshopCallingWhatsappGroupStatus: "All"
 };
 
 const FILTER_STORAGE_KEY = "dvWorkshopAdmissionCallingFilters";
@@ -64,7 +67,7 @@ let modalLeadId = null;
 let modalMode = "edit";
 let selectedLeadIds = new Set();
 
-const activityFields = ["modalPostDialed", "modalCoursePitched", "modalCourseStatus", "modalAdmissionStatus"];
+const activityFields = ["modalPostDialed", "modalCoursePitched", "modalCourseStatus", "modalAdmissionStatus", "modalPostCallStatus", "modalWorkshopJoiningStatus"];
 
 function setMessage(text, isError = true) {
   if (!postActivityMessage) {
@@ -139,6 +142,8 @@ function normalizeLeadFields(leads) {
     lead.coursePitched = lead.coursePitched || "";
     lead.courseStatus = lead.courseStatus || "";
     lead.admissionStatus = lead.admissionStatus || "";
+    lead.postCallStatus = lead.postCallStatus || "";
+    lead.workshopJoiningStatus = lead.workshopJoiningStatus || "";
     lead.postStatusUpdated = typeof lead.postStatusUpdated === "boolean" ? lead.postStatusUpdated : false;
     lead.workshopActivityHistory = Array.isArray(lead.workshopActivityHistory) ? lead.workshopActivityHistory : [];
     lead.admissionActivityHistory = Array.isArray(lead.admissionActivityHistory) ? lead.admissionActivityHistory : [];
@@ -146,6 +151,8 @@ function normalizeLeadFields(leads) {
       || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
     lead.postActivityUpdates = lead.admissionActivityHistory.length
       || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
+    lead.whatsappGroupStatus = lead.whatsappGroupStatus || "";
+    lead.leadNotes = Array.isArray(lead.leadNotes) ? lead.leadNotes : [];
   });
 }
 
@@ -180,7 +187,7 @@ function showToast(message, isError = false) {
 }
 
 function isLostLead(lead) {
-  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
+  return lead.postStatusUpdated && lead.courseStatus === "Not Interested";
 }
 
 function getAdmissionCallingLeads(allLeads) {
@@ -269,6 +276,14 @@ function renderFilters(leads) {
             ${workshopCallingWhatsappInviteOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
           </select>
         </div>
+        <div class="filter-item">
+          <label for="postWorkshopCallingWhatsappGroupStatusSelect">WhatsApp Group Status</label>
+          <select id="postWorkshopCallingWhatsappGroupStatusSelect">
+            <option value="All">All</option>
+            <option value="Joined">Joined</option>
+            <option value="Not Joined">Not Joined</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -330,6 +345,24 @@ function renderFilters(leads) {
             ${admissionOptions.map((value) => `<option value="${value}">${value}</option>`).join("")}
           </select>
         </div>
+        <div class="filter-item">
+          <label for="postCallStatusSelect">Call Status</label>
+          <select id="postCallStatusSelect">
+            <option value="All">All</option>
+            <option value="Connected">Connected</option>
+            <option value="CBL">CBL</option>
+            <option value="DNP">DNP</option>
+            <option value="CNC">CNC</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label for="postWorkshopJoiningStatusSelect">Workshop Joining Status</label>
+          <select id="postWorkshopJoiningStatusSelect">
+            <option value="All">All</option>
+            <option value="Joined">Joined</option>
+            <option value="Not Joined">Not Joined</option>
+          </select>
+        </div>
         <div class="filter-item filter-item-cta">
           <label>&nbsp;</label>
           <div class="filter-actions">
@@ -344,6 +377,7 @@ function renderFilters(leads) {
   document.getElementById("postWorkshopCallingCallStatusSelect").value = filter.workshopCallingCallStatus;
   document.getElementById("postWorkshopCallingWsStatusSelect").value = filter.workshopCallingWsStatus;
   document.getElementById("postWorkshopCallingWhatsappInviteSelect").value = filter.workshopCallingWhatsappInvite;
+  document.getElementById("postWorkshopCallingWhatsappGroupStatusSelect").value = filter.workshopCallingWhatsappGroupStatus;
   document.getElementById("postSearchLeadInput").value = filter.search;
   document.getElementById("postCounselorSelect").value = filter.counselor;
   document.getElementById("postActivityStatusSelect").value = filter.activityStatus;
@@ -352,6 +386,8 @@ function renderFilters(leads) {
   document.getElementById("postCoursePitchedSelect").value = filter.coursePitched;
   document.getElementById("postCourseStatusSelect").value = filter.courseStatus;
   document.getElementById("postAdmissionStatusSelect").value = filter.admissionStatus;
+  document.getElementById("postCallStatusSelect").value = filter.postCallStatus;
+  document.getElementById("postWorkshopJoiningStatusSelect").value = filter.workshopJoiningStatus;
 
   document.getElementById("postWorkshopCallingDialedSelect").onchange = (event) => {
     filter.workshopCallingDialed = event.target.value;
@@ -373,6 +409,12 @@ function renderFilters(leads) {
 
   document.getElementById("postWorkshopCallingWhatsappInviteSelect").onchange = (event) => {
     filter.workshopCallingWhatsappInvite = event.target.value;
+    persistFilterState();
+    renderAll();
+  };
+
+  document.getElementById("postWorkshopCallingWhatsappGroupStatusSelect").onchange = (event) => {
+    filter.workshopCallingWhatsappGroupStatus = event.target.value;
     persistFilterState();
     renderAll();
   };
@@ -421,6 +463,18 @@ function renderFilters(leads) {
 
   document.getElementById("postAdmissionStatusSelect").onchange = (event) => {
     filter.admissionStatus = event.target.value;
+    persistFilterState();
+    renderAll();
+  };
+
+  document.getElementById("postCallStatusSelect").onchange = (event) => {
+    filter.postCallStatus = event.target.value;
+    persistFilterState();
+    renderAll();
+  };
+
+  document.getElementById("postWorkshopJoiningStatusSelect").onchange = (event) => {
+    filter.workshopJoiningStatus = event.target.value;
     persistFilterState();
     renderAll();
   };
@@ -484,6 +538,10 @@ function filterLeads(leads) {
     filtered = filtered.filter((lead) => lead.whatsappInvite === filter.workshopCallingWhatsappInvite);
   }
 
+  if (filter.workshopCallingWhatsappGroupStatus !== "All") {
+    filtered = filtered.filter((lead) => lead.whatsappGroupStatus === filter.workshopCallingWhatsappGroupStatus);
+  }
+
   if (filter.postDialed !== "All") {
     filtered = filtered.filter((lead) => lead.postDialed === filter.postDialed);
   }
@@ -500,15 +558,25 @@ function filterLeads(leads) {
     filtered = filtered.filter((lead) => lead.admissionStatus === filter.admissionStatus);
   }
 
+  if (filter.postCallStatus !== "All") {
+    filtered = filtered.filter((lead) => lead.postCallStatus === filter.postCallStatus);
+  }
+
+  if (filter.workshopJoiningStatus !== "All") {
+    filtered = filtered.filter((lead) => lead.workshopJoiningStatus === filter.workshopJoiningStatus);
+  }
+
   return filtered;
 }
 
 function renderActivityPanel(lead) {
   const hasActivity = Array.isArray(lead.admissionActivityHistory) && lead.admissionActivityHistory.length > 0;
+  const noteCount = Array.isArray(lead.leadNotes) ? lead.leadNotes.length : 0;
   return `
     <div class="activity-panel">
       <button class="btn-view-activity" type="button" data-lead-id="${lead.id}" aria-label="View activity details" title="View activity details">👁</button>
       <button class="btn-update-status${hasActivity ? " btn-update-status--active" : ""}" data-lead-id="${lead.id}">Update</button>
+      <button class="btn-ghost btn-notes" type="button" data-lead-id="${lead.id}">Notes${noteCount ? ` (${noteCount})` : ""}</button>
       ${canCreateTasks ? `<button class="btn-ghost btn-task" type="button" data-lead-id="${lead.id}">Task</button>` : ""}
       ${isAdmin ? `<button class="btn-delete" type="button" data-lead-id="${lead.id}">Delete</button>` : ""}
     </div>
@@ -593,6 +661,13 @@ function renderLeadTable(leads) {
     };
   });
 
+  document.querySelectorAll(".btn-notes").forEach((button) => {
+    button.onclick = () => {
+      const leadId = button.getAttribute("data-lead-id");
+      openNotesModal(leadId);
+    };
+  });
+
   document.querySelectorAll(".btn-task").forEach((button) => {
     button.onclick = () => {
       const leadId = button.getAttribute("data-lead-id");
@@ -664,6 +739,8 @@ function populatePostActivityModal(lead) {
   document.getElementById("modalCoursePitched").value = lead.coursePitched;
   document.getElementById("modalCourseStatus").value = lead.courseStatus;
   document.getElementById("modalAdmissionStatus").value = lead.admissionStatus;
+  document.getElementById("modalPostCallStatus").value = lead.postCallStatus;
+  document.getElementById("modalWorkshopJoiningStatus").value = lead.workshopJoiningStatus;
 }
 
 async function updatePostActivity(leadId, updates) {
@@ -865,6 +942,104 @@ function closePostModal() {
   setPostActivityModalMode("edit");
 }
 
+let notesLeadId = null;
+
+function openNotesModal(leadId) {
+  notesLeadId = leadId;
+  const allLeads = getAllLeads();
+  const lead = allLeads.find((item) => String(item.id) === String(leadId));
+  if (!lead) {
+    return;
+  }
+
+  const notes = Array.isArray(lead.leadNotes) ? lead.leadNotes : [];
+  const notesListSection = document.getElementById("notesListSection");
+  if (notesListSection) {
+    notesListSection.innerHTML = notes.length
+      ? notes.map((note, idx) => `
+        <div class="note-item">
+          <span class="note-text">${note.text}</span>
+          <span class="note-meta">${note.by || ""}${note.by && note.at ? " \u2013 " : ""}${note.at || ""}</span>
+          <button type="button" class="btn-ghost btn-delete-note" data-note-index="${idx}" style="font-size:0.75rem;padding:2px 6px;">Delete</button>
+        </div>`).join("")
+      : "<p class=\"block-help\">No notes yet. Add one below.</p>";
+
+    notesListSection.querySelectorAll(".btn-delete-note").forEach((btn) => {
+      btn.onclick = () => {
+        const idx = Number(btn.getAttribute("data-note-index"));
+        void deleteNote(leadId, idx);
+      };
+    });
+  }
+
+  const newNoteInput = document.getElementById("newNoteInput");
+  if (newNoteInput) {
+    newNoteInput.value = "";
+  }
+
+  const notesModal = document.getElementById("notesModal");
+  if (notesModal) {
+    notesModal.classList.remove("hidden");
+  }
+}
+
+function closeNotesModal() {
+  const notesModal = document.getElementById("notesModal");
+  if (notesModal) {
+    notesModal.classList.add("hidden");
+  }
+  notesLeadId = null;
+}
+
+async function saveNote() {
+  const newNoteInput = document.getElementById("newNoteInput");
+  const text = newNoteInput ? newNoteInput.value.trim() : "";
+  if (!text || !notesLeadId) {
+    return;
+  }
+
+  const allLeads = getAllLeads();
+  const index = allLeads.findIndex((item) => String(item.id) === String(notesLeadId));
+  if (index === -1) {
+    return;
+  }
+
+  const notes = Array.isArray(allLeads[index].leadNotes) ? allLeads[index].leadNotes : [];
+  allLeads[index] = {
+    ...allLeads[index],
+    leadNotes: [
+      ...notes,
+      {
+        text,
+        at: new Date().toISOString().slice(0, 10),
+        by: session?.name || "Unknown"
+      }
+    ]
+  };
+
+  await saveAllLeads(allLeads);
+  openNotesModal(notesLeadId);
+  showToast("Note saved.", false);
+}
+
+async function deleteNote(leadId, noteIndex) {
+  const allLeads = getAllLeads();
+  const index = allLeads.findIndex((item) => String(item.id) === String(leadId));
+  if (index === -1) {
+    return;
+  }
+
+  const notes = Array.isArray(allLeads[index].leadNotes) ? allLeads[index].leadNotes : [];
+  allLeads[index] = {
+    ...allLeads[index],
+    leadNotes: notes.filter((_, idx) => idx !== noteIndex)
+  };
+
+  await saveAllLeads(allLeads);
+  openNotesModal(leadId);
+  showToast("Note deleted.", false);
+}
+
 function setTaskMessage(text, isError = true) {
   if (!taskMessage) {
     return;
@@ -900,6 +1075,10 @@ function openTaskModal(leadId) {
   taskCategoryInput.value = TASK_CATEGORY.admission;
   taskLeadNameInput.value = lead.name || "";
   taskCounselorInput.value = lead.counselor || "Unassigned";
+  const taskLeadPhoneInput = document.getElementById("taskLeadPhone");
+  if (taskLeadPhoneInput) {
+    taskLeadPhoneInput.value = lead.phone || "-";
+  }
   taskTitleInput.value = `Follow up with ${lead.name || "lead"}`;
   taskNotesInput.value = "";
   taskDueDateInput.value = "";
@@ -930,6 +1109,7 @@ async function handleTaskSubmit(event) {
   await createTask({
     leadId: lead.id,
     leadName: lead.name,
+    leadPhone: lead.phone || "",
     leadCounselor: lead.counselor || "Unassigned",
     counselor: session?.name || lead.counselor || "Unassigned",
     category: TASK_CATEGORY.admission,
@@ -960,6 +1140,8 @@ function initPostWorkshopPage() {
       coursePitched: document.getElementById("modalCoursePitched").value,
       courseStatus: document.getElementById("modalCourseStatus").value,
       admissionStatus: document.getElementById("modalAdmissionStatus").value,
+      postCallStatus: document.getElementById("modalPostCallStatus").value,
+      workshopJoiningStatus: document.getElementById("modalWorkshopJoiningStatus").value,
       postStatusUpdated: true
     });
 
@@ -975,6 +1157,14 @@ function initPostWorkshopPage() {
   if (taskModal && taskForm) {
     document.getElementById("closeTaskModalBtn").onclick = closeTaskModal;
     taskForm.onsubmit = handleTaskSubmit;
+  }
+
+  const notesModal = document.getElementById("notesModal");
+  if (notesModal) {
+    document.getElementById("closeNotesModalBtn").onclick = closeNotesModal;
+    document.getElementById("saveNoteBtn").onclick = () => {
+      void saveNote();
+    };
   }
 
   document.querySelectorAll(".btn-task").forEach((button) => {

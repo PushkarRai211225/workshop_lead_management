@@ -1,5 +1,5 @@
 import { registerPageCleanup } from "./page-runtime.js";
-import { bootstrapLocalState, getCounselors, getLeads as getStoredLeads, getSession, loadPersistedValue, savePersistedValue, startStatePolling } from "./state-sync.js";
+import { bootstrapLocalState, getCounselors, getLeads as getStoredLeads, getSession, loadPersistedValue, saveLeads as persistLeads, savePersistedValue, startStatePolling } from "./state-sync.js";
 
 await bootstrapLocalState();
 
@@ -79,6 +79,8 @@ function normalizeLeadFields(leads) {
       || (Number.isFinite(Number(lead.preActivityUpdates)) ? Number(lead.preActivityUpdates) : 0);
     lead.postActivityUpdates = lead.admissionActivityHistory.length
       || (Number.isFinite(Number(lead.postActivityUpdates)) ? Number(lead.postActivityUpdates) : 0);
+    lead.whatsappGroupStatus = lead.whatsappGroupStatus || "";
+    lead.leadNotes = Array.isArray(lead.leadNotes) ? lead.leadNotes : [];
   });
 }
 
@@ -88,19 +90,41 @@ function getAllLeads() {
   return leads;
 }
 
+function saveAllLeads(leads) {
+  return persistLeads(leads);
+}
+
+async function restoreLead(leadId) {
+  const allLeads = getAllLeads();
+  const index = allLeads.findIndex((lead) => String(lead.id) === String(leadId));
+  if (index === -1) {
+    return;
+  }
+
+  const confirmed = window.confirm("Restore this lead back to Admission Calling?");
+  if (!confirmed) {
+    return;
+  }
+
+  allLeads[index] = {
+    ...allLeads[index],
+    courseStatus: "",
+    postStatusUpdated: false
+  };
+
+  await saveAllLeads(allLeads);
+  renderAll();
+}
+
 function isPostWorkshopLead(lead) {
   return lead.wsStatus === "Interested" && lead.whatsappInvite === "Yes";
 }
 
 function isLostLead(lead) {
-  return lead.wsStatus === "Not Interested" || (lead.postStatusUpdated && lead.courseStatus === "Not Interested");
+  return lead.postStatusUpdated && lead.courseStatus === "Not Interested";
 }
 
 function getLostSource(lead) {
-  if (lead.wsStatus === "Not Interested") {
-    return "Workshop Calling";
-  }
-
   if (lead.postStatusUpdated && lead.courseStatus === "Not Interested") {
     return "Admission Calling";
   }
@@ -118,6 +142,7 @@ function renderKpi(lostLeads) {
 }
 
 function renderTable(lostLeads) {
+  const isAdmin = session?.role === "admin";
   let html = `
     <div class="table-scroll">
       <table>
@@ -130,13 +155,14 @@ function renderTable(lostLeads) {
             <th>Workshop Name</th>
             <th>Counselor</th>
             <th>Lost Stage</th>
+            ${isAdmin ? "<th>Actions</th>" : ""}
           </tr>
         </thead>
         <tbody>
   `;
 
   if (!lostLeads.length) {
-    html += `<tr><td colspan="7">No lost leads found.</td></tr>`;
+    html += `<tr><td colspan="${isAdmin ? 8 : 7}">No lost leads found.</td></tr>`;
   } else {
     html += lostLeads
       .map(
@@ -149,6 +175,7 @@ function renderTable(lostLeads) {
         <td>${lead.workshop}</td>
         <td>${lead.counselor || "Unassigned"}</td>
         <td>${getLostSource(lead)}</td>
+        ${isAdmin ? `<td><button class="btn-ghost btn-restore-lead" type="button" data-lead-id="${lead.id}">Restore</button></td>` : ""}
       </tr>
     `
       )
@@ -157,6 +184,17 @@ function renderTable(lostLeads) {
 
   html += `</tbody></table></div>`;
   lostLeadTableSection.innerHTML = html;
+
+  if (isAdmin) {
+    document.querySelectorAll(".btn-restore-lead").forEach((button) => {
+      button.onclick = () => {
+        const leadId = button.getAttribute("data-lead-id");
+        if (leadId) {
+          void restoreLead(leadId);
+        }
+      };
+    });
+  }
 }
 
 function renderAll() {
