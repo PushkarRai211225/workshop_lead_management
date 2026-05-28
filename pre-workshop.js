@@ -1021,7 +1021,11 @@ async function handleLeadImport() {
   });
 
   normalizeLeadFields(nextLeads);
-  saveAllLeads(nextLeads);
+  const importSaveResult = await saveAllLeads(nextLeads);
+  if (!importSaveResult || importSaveResult.ok === false) {
+    setMessage(importMessage, importSaveResult?.message || "Failed to save imported leads. Please check your connection and try again.", true);
+    return;
+  }
 
   const syncResult = await syncStateFromLocalAndVerify();
   if (!syncResult.ok) {
