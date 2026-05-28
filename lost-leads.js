@@ -112,7 +112,11 @@ async function restoreLead(leadId) {
     postStatusUpdated: false
   };
 
-  await saveAllLeads(allLeads);
+  const restoreResult = await saveAllLeads(allLeads);
+  if (!restoreResult || restoreResult.ok === false) {
+    window.alert("Failed to restore lead. Please check your connection and try again.");
+    return;
+  }
   renderAll();
 }
 

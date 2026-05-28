@@ -70,6 +70,26 @@ function sortTasks(tasks) {
   });
 }
 
+function showToast(message, isError = false) {
+  let container = document.getElementById("dvToastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "dvToastContainer";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${isError ? "toast--error" : "toast--success"}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("toast--fade");
+    setTimeout(() => toast.remove(), 350);
+  }, 3000);
+}
+
 function renderTaskTable(tasks, emptyMessage) {
   if (!tasks.length) {
     return `<p class="block-help">${emptyMessage}</p>`;
@@ -119,7 +139,11 @@ function renderTaskTable(tasks, emptyMessage) {
 }
 
 async function completeTask(taskId) {
-  await deleteTask(taskId);
+  const result = await deleteTask(taskId);
+  if (!result || result.ok === false) {
+    showToast(result?.message || "Failed to complete task. Please check your connection and try again.", true);
+    return;
+  }
   renderAll();
 }
 
@@ -129,7 +153,11 @@ async function removeTask(taskId) {
     return;
   }
 
-  await deleteTask(taskId);
+  const result = await deleteTask(taskId);
+  if (!result || result.ok === false) {
+    showToast(result?.message || "Failed to remove task. Please check your connection and try again.", true);
+    return;
+  }
   renderAll();
 }
 
@@ -151,7 +179,11 @@ async function rescheduleTask(taskId) {
     return;
   }
 
-  await updateTask(taskId, { dueDate: nextDueDate });
+  const result = await updateTask(taskId, { dueDate: nextDueDate });
+  if (!result || result.ok === false) {
+    showToast(result?.message || "Failed to reschedule task. Please check your connection and try again.", true);
+    return;
+  }
   renderAll();
 }
 

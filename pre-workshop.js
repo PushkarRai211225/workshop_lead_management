@@ -116,7 +116,7 @@ async function verifyAssignedCounselorsOnBackend(importedRecords) {
   return { ok: true };
 }
 
-function deleteLead(leadId) {
+async function deleteLead(leadId) {
   const allLeads = getAllLeads();
   const index = allLeads.findIndex((lead) => String(lead.id) === String(leadId));
   if (index === -1) {
@@ -129,12 +129,16 @@ function deleteLead(leadId) {
   }
 
   allLeads.splice(index, 1);
-  saveAllLeads(allLeads);
+  const deleteLeadResult = await saveAllLeads(allLeads);
+  if (!deleteLeadResult || deleteLeadResult.ok === false) {
+    showToast("Failed to delete lead. Please check your connection and try again.", true);
+    return false;
+  }
   setMessage("Lead deleted successfully.", false);
   return true;
 }
 
-function deleteSelectedLeads(leads) {
+async function deleteSelectedLeads(leads) {
   const selectedIds = [...selectedLeadIds].map((leadId) => String(leadId));
   if (!selectedIds.length) {
     return false;
@@ -151,7 +155,11 @@ function deleteSelectedLeads(leads) {
     return false;
   }
 
-  saveAllLeads(remainingLeads);
+  const deleteSelectedResult = await saveAllLeads(remainingLeads);
+  if (!deleteSelectedResult || deleteSelectedResult.ok === false) {
+    showToast("Failed to delete selected leads. Please check your connection and try again.", true);
+    return false;
+  }
   clearSelectedLeadIds();
   setMessage(`Deleted ${removedCount} selected lead${removedCount === 1 ? "" : "s"}.`, false);
   return true;
@@ -510,7 +518,7 @@ async function deleteLostLeads() {
 }
 
 function saveAllocation(allocation) {
-  void persistAllocation(allocation);
+  return persistAllocation(allocation);
 }
 
 function getAllocation() {
@@ -1079,7 +1087,7 @@ function setupAdminPanel() {
     return;
   }
 
-  saveAllocationBtn.onclick = () => {
+  saveAllocationBtn.onclick = async () => {
     const nextAllocation = readAllocationFromForm();
     const validation = validateAllocation(nextAllocation);
 
@@ -1088,7 +1096,11 @@ function setupAdminPanel() {
       return;
     }
 
-    saveAllocation(validation.cleaned);
+    const allocResult = await saveAllocation(validation.cleaned);
+    if (!allocResult || allocResult.ok === false) {
+      setMessage(allocationMessage, allocResult?.message || "Failed to save allocation. Please check your connection.", true);
+      return;
+    }
     renderAllocationRows(validation.cleaned);
     setMessage(allocationMessage, "Counselor allocation saved successfully.", false);
   };
@@ -1841,7 +1853,11 @@ async function saveNote() {
     ]
   };
 
-  await saveAllLeads(allLeads);
+  const noteSaveResult = await saveAllLeads(allLeads);
+  if (!noteSaveResult || noteSaveResult.ok === false) {
+    showToast("Failed to save note. Please check your connection and try again.", true);
+    return;
+  }
   openNotesModal(notesLeadId);
   showToast("Note saved.", false);
 }
@@ -1859,7 +1875,11 @@ async function deleteNote(leadId, noteIndex) {
     leadNotes: notes.filter((_, idx) => idx !== noteIndex)
   };
 
-  await saveAllLeads(allLeads);
+  const noteDeleteResult = await saveAllLeads(allLeads);
+  if (!noteDeleteResult || noteDeleteResult.ok === false) {
+    showToast("Failed to delete note. Please check your connection and try again.", true);
+    return;
+  }
   openNotesModal(leadId);
   showToast("Note deleted.", false);
 }
@@ -1930,7 +1950,7 @@ async function handleTaskSubmit(event) {
     return;
   }
 
-  await createTask({
+  const taskResult = await createTask({
     leadId: lead.id,
     leadName: lead.name,
     leadPhone: lead.phone || "",
@@ -1941,6 +1961,11 @@ async function handleTaskSubmit(event) {
     notes: taskNotesInput.value.trim(),
     dueDate
   });
+
+  if (!taskResult || taskResult.ok === false) {
+    setTaskMessage(taskResult?.message || "Failed to save task. Please check your connection and try again.", true);
+    return;
+  }
 
   setTaskMessage("Task created and sent to Task Tracker.", false);
   closeTaskModal();

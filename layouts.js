@@ -1,6 +1,6 @@
 import { runPageCleanup } from "./page-runtime.js";
 import { bindThemeControls, initThemeSystem } from "./theme.js";
-import { bootstrapLocalState, getSession, getStateField, logout, refreshSession, refreshState } from "./state-sync.js";
+import { bootstrapLocalState, getSession, getStateField, logout, refreshSession, refreshState, awaitPendingMutations } from "./state-sync.js";
 import { startPingMonitor, mountPingPill } from "./ping-monitor.js";
 
 let currentRoute = window.location.pathname.split("/").pop() || "dashboard.html";
@@ -269,6 +269,16 @@ async function navigateToRoute(href, options = {}) {
     }
 
     await ensureRouteAssets(targetDocument, url.href);
+    if (navigationToken !== activeNavigationToken) {
+      return;
+    }
+
+    // Wait for any queued state mutations to complete before reading back the
+    // server state. Without this, a counselor saving an activity and immediately
+    // clicking a sidebar link could trigger refreshState() before the PUT
+    // response arrives, causing the optimistic update to be overwritten with
+    // the pre-mutation server state.
+    await awaitPendingMutations();
     if (navigationToken !== activeNavigationToken) {
       return;
     }

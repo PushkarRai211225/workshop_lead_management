@@ -33,20 +33,24 @@ const DEFAULT_PERMISSIONS = {
   monitoring: true
 };
 
-// Compress all responses ≥ 1 KB — dramatically reduces /api/state payload size.
-app.use(compress({ threshold: 1024 }));
-app.use(express.json({ limit: "5mb" }));
+// ─── Ping FIRST — absolute minimal path, no auth, no JSON parsing overhead ───
+// Registered before all middleware so the latency measurement is as accurate
+// as possible and is not inflated by gzip, JSON body parsing, or static file
+// lookups.  Keep this response tiny to avoid network serialisation skewing the
+// round-trip time reading.
+app.get("/api/ping", (_req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-store");
+  res.end('{"ok":true}');
+});
 
 app.get("/favicon.ico", (_req, res) => {
   res.status(204).end();
 });
 
-// Lightweight ping endpoint used by the client-side latency monitor.
-// No auth required — it must respond as fast as possible with minimal payload.
-app.get("/api/ping", (_req, res) => {
-  res.json({ ok: true });
-});
-
+// Compress all responses ≥ 1 KB — dramatically reduces /api/state payload size.
+app.use(compress({ threshold: 1024 }));
+app.use(express.json({ limit: "5mb" }));
 app.use(express.static(ROOT_DIR));
 
 let stateCollection;
@@ -55,7 +59,10 @@ let preferenceCollection;
 let mongoInitPromise;
 let cachedStateDoc    = null;
 let cachedStateDocAt  = 0;
-const STATE_CACHE_TTL_MS = 10000; // Re-read from Mongo after 10 s so stale instances pick up writes from other instances
+// Re-read from Mongo after 5 s so stale serverless instances pick up writes
+// from other instances sooner. Shorter TTL reduces the window in which a
+// concurrent GET can return stale data after a PUT on a different instance.
+const STATE_CACHE_TTL_MS = 5000;
 
 // In-process session cache — avoids a MongoDB round-trip on every authenticated
 // request.  Entries expire after 60 s so a deleted/expired session is noticed
@@ -211,14 +218,16 @@ async function initMongo() {
   if (!mongoInitPromise) {
     mongoInitPromise = (async () => {
       const client = new MongoClient(MONGODB_URI, {
-        // Keep a small warm pool so subsequent requests reuse the same TCP
-        // connection instead of paying the TLS handshake cost every time.
-        maxPoolSize: 5,
-        minPoolSize: 1,
+        // Larger pool so concurrent serverless invocations don't queue waiting
+        // for a connection.  minPoolSize keeps a couple of connections warm so
+        // cold-start latency is lower on the first request after idle time.
+        maxPoolSize: 10,
+        minPoolSize: 2,
         // Fail fast on cold starts rather than hanging for 30 s.
         serverSelectionTimeoutMS: 8000,
         connectTimeoutMS: 8000,
-        socketTimeoutMS: 30000
+        // Generous socket timeout for high-latency or slow-network writes.
+        socketTimeoutMS: 45000
       });
       await client.connect();
       const db = client.db(MONGODB_DB_NAME);
@@ -459,7 +468,7 @@ app.put("/api/preferences/:scope", async (req, res) => {
           createdAt: now
         }
       },
-      { upsert: true }
+      { upsert: true, writeConcern: { w: 1, j: true } }
     );
 
     return res.json({ ok: true, value });
@@ -495,13 +504,12 @@ app.put("/api/state", async (req, res) => {
 
     const now = new Date().toISOString();
     const currentState = await getStateDoc();
-    const nextState = cacheStateDoc({
-      ...currentState,
-      ...sanitized,
-      updatedAt: now
-    });
 
-    await stateCollection.updateOne(
+    // Use findOneAndUpdate with returnDocument:'after' so we return (and cache)
+    // exactly what MongoDB stored, not just what we sent.  writeConcern j:true
+    // ensures the write is flushed to the journal before MongoDB acknowledges it,
+    // which prevents acknowledged-but-not-durable data loss on a crash/restart.
+    const result = await stateCollection.findOneAndUpdate(
       { _id: STATE_DOC_ID },
       {
         $set: {
@@ -509,11 +517,23 @@ app.put("/api/state", async (req, res) => {
           updatedAt: now
         },
         $setOnInsert: {
+          leads: currentState.leads || [],
+          counselors: currentState.counselors || [],
+          allocation: currentState.allocation || [],
+          tasks: currentState.tasks || [],
           createdAt: now
         }
       },
-      { upsert: true }
+      {
+        upsert: true,
+        returnDocument: "after",
+        writeConcern: { w: 1, j: true }
+      }
     );
+
+    // Fallback: if findOneAndUpdate returns null for some driver version, merge manually.
+    const written = result?.value ?? result ?? { ...currentState, ...sanitized, updatedAt: now };
+    const nextState = cacheStateDoc(written);
 
     return res.json(buildStateResponse(nextState));
   } catch (error) {
@@ -523,34 +543,33 @@ app.put("/api/state", async (req, res) => {
 
 app.put("/api/state/reset", async (_req, res) => {
   try {
-    const currentState = await getStateDoc();
     const now = new Date().toISOString();
-    const nextState = cacheStateDoc({
-      ...currentState,
+    const resetFields = {
       leads: [],
       allocation: [],
       tasks: [],
       updatedAt: now,
       clearedAt: now
-    });
+    };
 
-    await stateCollection.updateOne(
+    const result = await stateCollection.findOneAndUpdate(
       { _id: STATE_DOC_ID },
       {
-        $set: {
-          leads: [],
-          allocation: [],
-          tasks: [],
-          updatedAt: now,
-          clearedAt: now
-        },
+        $set: resetFields,
         $setOnInsert: {
           counselors: [],
           createdAt: now
         }
       },
-      { upsert: true }
+      {
+        upsert: true,
+        returnDocument: "after",
+        writeConcern: { w: 1, j: true }
+      }
     );
+
+    const written = result?.value ?? result ?? resetFields;
+    const nextState = cacheStateDoc(written);
 
     return res.json(buildStateResponse(nextState));
   } catch (error) {
@@ -594,7 +613,7 @@ app.put("/api/leads", async (req, res) => {
           createdAt: new Date().toISOString()
         }
       },
-      { upsert: true }
+      { upsert: true, writeConcern: { w: 1, j: true } }
     );
     return res.json({ ok: true });
   } catch (error) {
@@ -637,7 +656,7 @@ app.put("/api/counselors", async (req, res) => {
           createdAt: new Date().toISOString()
         }
       },
-      { upsert: true }
+      { upsert: true, writeConcern: { w: 1, j: true } }
     );
     return res.json({ ok: true });
   } catch (error) {
@@ -681,7 +700,7 @@ app.put("/api/allocation", async (req, res) => {
           createdAt: new Date().toISOString()
         }
       },
-      { upsert: true }
+      { upsert: true, writeConcern: { w: 1, j: true } }
     );
     return res.json({ ok: true });
   } catch (error) {

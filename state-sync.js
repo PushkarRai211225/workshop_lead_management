@@ -16,6 +16,15 @@ let lastStateETag = null; // tracks the ETag returned by the last GET /api/state
 // How long (ms) after a confirmed server write to suppress polling so a stale
 // serverless-instance cache cannot revert a lead that was just updated.
 const MUTATION_POLL_COOLDOWN_MS = 20000;
+// Monotonically increasing counter — incremented each time an optimistic update
+// is applied. Used to prevent an older PUT's server response from overwriting
+// a newer optimistic state that was applied while the PUT was in flight.
+let optimisticSeq = 0;
+// How many times to retry a failed PUT before giving up.
+const MAX_PUT_RETRIES = 3;
+// Timeout for state mutation PUT requests. Longer than the read timeout to
+// accommodate high-latency connections and larger JSON bodies.
+const PUT_TIMEOUT_MS = 20000;
 const stateSubscribers = new Set();
 
 function notifyStateSubscribers() {
@@ -140,34 +149,97 @@ export async function updateStateFields(fields) {
     return { ok: false, message: "No valid state fields provided." };
   }
 
+  // Stamp this optimistic update with a monotonically increasing sequence number.
+  // When the PUT response eventually arrives we only apply setCurrentState if no
+  // newer optimistic update has been applied in the meantime — this prevents PUT#1's
+  // response from overwriting a note/task that was applied optimistically while PUT#1
+  // was still in flight.
+  const mySeq = ++optimisticSeq;
+
   // Apply optimistically so subsequent reads and subscribers see the change immediately,
   // without waiting for the server round-trip. This eliminates the delay between a
   // counselor saving an activity and the table reflecting the update.
   setCurrentState({ ...currentState, ...nextFields });
 
   pendingStateUpdate = pendingStateUpdate.then(async () => {
-    const { response, payload } = await fetchJson("/api/state", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json"
-      },
-      body: JSON.stringify(nextFields)
-    });
+    // Retry the PUT up to MAX_PUT_RETRIES times on transient network failures before
+    // reverting optimistic state. On high-latency connections (>300 ms) transient
+    // failures are common and a single attempt is not sufficient.
+    let lastError = null;
 
-    if (!response.ok) {
-      // Correct any wrong optimistic state by fetching the authoritative server state.
-      void refreshState().catch(() => undefined);
-      return { ok: false, message: payload?.message || "Failed to update state." };
+    for (let attempt = 1; attempt <= MAX_PUT_RETRIES; attempt++) {
+      try {
+        // keepalive: true ensures the browser sends this request to completion
+        // even if the user navigates away or reloads the page before the response
+        // arrives. Without this, page navigation mid-write silently drops the PUT.
+        // For very large payloads (>64 KB) the browser ignores keepalive, so we
+        // try it and fall back gracefully.
+        let fetchOptions;
+        try {
+          fetchOptions = {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json"
+            },
+            body: JSON.stringify(nextFields),
+            keepalive: true
+          };
+          // Test keepalive feasibility by constructing a Request — browsers
+          // throw synchronously here if the body is too large for keepalive.
+          void new Request("/api/state", fetchOptions);
+        } catch (_keepAliveErr) {
+          // Payload too large for keepalive — omit the flag and rely on the
+          // retry loop to recover from any dropped connection.
+          fetchOptions = {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json"
+            },
+            body: JSON.stringify(nextFields)
+          };
+        }
+        const { response, payload } = await fetchJson("/api/state", fetchOptions, PUT_TIMEOUT_MS);
+
+        if (response.ok) {
+          // Only replace in-memory state with the server response if no newer
+          // optimistic update has been applied after this one. If a newer update
+          // is already in memory we must not overwrite it with an older snapshot.
+          if (optimisticSeq === mySeq) {
+            setCurrentState(payload);
+          }
+          // Record the time of this confirmed server write so the polling loop can
+          // skip refreshState() during the cooldown window. This prevents a stale
+          // in-memory cache on another Vercel serverless instance from overwriting
+          // the update we just confirmed was persisted to MongoDB.
+          lastSuccessfulMutationAt = Date.now();
+          return { ok: true, payload: getStateSnapshot() };
+        }
+
+        // 4xx errors are definitive failures — do not retry.
+        if (response.status >= 400 && response.status < 500) {
+          void refreshState().catch(() => undefined);
+          return { ok: false, message: payload?.message || "Failed to update state." };
+        }
+
+        // 5xx — server-side error, retry after backoff.
+        lastError = new Error(payload?.message || `Server error ${response.status}`);
+      } catch (err) {
+        // Network failure (timeout, abort, DNS, etc.) — retry.
+        lastError = err;
+      }
+
+      if (attempt < MAX_PUT_RETRIES) {
+        // Exponential backoff: 2 s, 4 s between retries.
+        await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+      }
     }
 
-    setCurrentState(payload);
-    // Record the time of this confirmed server write so the polling loop can
-    // skip refreshState() during the cooldown window.  This prevents a stale
-    // in-memory cache on another Vercel serverless instance from overwriting
-    // the update we just confirmed was persisted to MongoDB.
-    lastSuccessfulMutationAt = Date.now();
-    return { ok: true, payload: getStateSnapshot() };
+    // All retries exhausted — revert to the authoritative server state so the UI
+    // reflects what is actually persisted rather than showing an optimistic lie.
+    void refreshState().catch(() => undefined);
+    return { ok: false, message: lastError?.message || "Failed to update state after retries." };
   }).catch((error) => {
     // On network failure refresh to restore correct server state.
     void refreshState().catch(() => undefined);
@@ -181,9 +253,26 @@ export async function syncStateFromLocal() {
   return { ok: true, scheduled: false };
 }
 
+/**
+ * Wait for all queued mutations to complete, then read back from the server
+ * to confirm durable persistence.  Waits for the mutation poll-cooldown window
+ * to expire first so we don't accidentally hit a stale serverless-instance
+ * cache and mistake old data for the freshly written state.
+ */
 export async function syncStateFromLocalAndVerify() {
   try {
     await pendingStateUpdate;
+
+    // If a mutation was confirmed recently, wait for the server-side cache TTL
+    // (5 s) to expire before reading back.  This ensures the GET hits MongoDB
+    // directly rather than a stale in-memory cache on a different serverless
+    // instance that hasn't seen the write yet.
+    const msSinceMutation = Date.now() - lastSuccessfulMutationAt;
+    const SERVER_CACHE_TTL_MS = 5000;
+    if (lastSuccessfulMutationAt > 0 && msSinceMutation < SERVER_CACHE_TTL_MS) {
+      await new Promise((resolve) => setTimeout(resolve, SERVER_CACHE_TTL_MS - msSinceMutation + 200));
+    }
+
     await refreshState();
     return { ok: true };
   } catch (error) {
@@ -196,6 +285,15 @@ export async function syncStateFromLocalAndVerify() {
 
 export function markStateMutated() {
   return undefined;
+}
+
+/**
+ * Resolves once all currently-queued state mutation PUTs have settled.
+ * Use this in navigation handlers to prevent a soft-nav refreshState() from
+ * overwriting optimistic state that is still being written to the server.
+ */
+export async function awaitPendingMutations() {
+  return pendingStateUpdate;
 }
 
 export async function refreshSession() {

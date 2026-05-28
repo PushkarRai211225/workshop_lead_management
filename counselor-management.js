@@ -125,7 +125,11 @@ async function removeCounselor(counselorId) {
   }
 
   const nextCounselors = counselors.filter((item) => item.id !== counselorId);
-  await saveCounselors(nextCounselors);
+  const saveCounselorResult = await saveCounselors(nextCounselors);
+  if (!saveCounselorResult || saveCounselorResult.ok === false) {
+    setMessage(saveCounselorResult?.message || "Failed to save counselor changes. Please check your connection.", true);
+    return;
+  }
   await syncAllocationWithCounselors(nextCounselors);
 
   const leads = getLeads();
@@ -141,7 +145,11 @@ async function removeCounselor(counselorId) {
     return lead;
   });
   if (changed) {
-    await saveLeads(updatedLeads);
+    const saveLeadsResult = await saveLeads(updatedLeads);
+    if (!saveLeadsResult || saveLeadsResult.ok === false) {
+      setMessage(saveLeadsResult?.message || "Counselor removed but failed to unassign leads. Please reload and retry.", true);
+      return;
+    }
   }
 
   const allocation = getAllocation();
@@ -149,7 +157,11 @@ async function removeCounselor(counselorId) {
     (item) => String(item.name || "").toLowerCase() !== target.name.toLowerCase()
   );
   if (filteredAllocation.length !== allocation.length) {
-    await saveAllocation(rebalanceAllocation(filteredAllocation));
+    const saveAllocResult = await saveAllocation(rebalanceAllocation(filteredAllocation));
+    if (!saveAllocResult || saveAllocResult.ok === false) {
+      setMessage(saveAllocResult?.message || "Counselor removed but failed to update allocation. Please reload and retry.", true);
+      return;
+    }
   }
 
   const syncResult = await syncStateFromLocalAndVerify();

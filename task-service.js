@@ -59,15 +59,18 @@ export async function createTask(taskInput) {
   const tasks = getTasks();
   const nextTask = normalizeTask(taskInput);
   tasks.unshift(nextTask);
-  await saveTasks(tasks);
-  return nextTask;
+  const result = await saveTasks(tasks);
+  if (!result || result.ok === false) {
+    return { ok: false, message: result?.message || "Failed to save task." };
+  }
+  return { ok: true, task: nextTask };
 }
 
 export async function updateTask(taskId, updates) {
   const tasks = getTasks();
   const index = tasks.findIndex((task) => String(task.id) === String(taskId));
   if (index === -1) {
-    return null;
+    return { ok: false, message: "Task not found." };
   }
 
   const updatedTask = normalizeTask({
@@ -77,17 +80,23 @@ export async function updateTask(taskId, updates) {
   });
 
   tasks[index] = updatedTask;
-  await saveTasks(tasks);
-  return updatedTask;
+  const result = await saveTasks(tasks);
+  if (!result || result.ok === false) {
+    return { ok: false, message: result?.message || "Failed to update task." };
+  }
+  return { ok: true, task: updatedTask };
 }
 
 export async function deleteTask(taskId) {
   const tasks = getTasks();
   const nextTasks = tasks.filter((task) => String(task.id) !== String(taskId));
   if (nextTasks.length === tasks.length) {
-    return false;
+    return { ok: false, message: "Task not found." };
   }
 
-  await saveTasks(nextTasks);
-  return true;
+  const result = await saveTasks(nextTasks);
+  if (!result || result.ok === false) {
+    return { ok: false, message: result?.message || "Failed to delete task." };
+  }
+  return { ok: true };
 }
