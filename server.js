@@ -504,12 +504,13 @@ app.put("/api/state", async (req, res) => {
 
     const now = new Date().toISOString();
     const currentState = await getStateDoc();
+    const nextState = cacheStateDoc({
+      ...currentState,
+      ...sanitized,
+      updatedAt: now
+    });
 
-    // Use findOneAndUpdate with returnDocument:'after' so we return (and cache)
-    // exactly what MongoDB stored, not just what we sent.  writeConcern j:true
-    // ensures the write is flushed to the journal before MongoDB acknowledges it,
-    // which prevents acknowledged-but-not-durable data loss on a crash/restart.
-    const result = await stateCollection.findOneAndUpdate(
+    await stateCollection.updateOne(
       { _id: STATE_DOC_ID },
       {
         $set: {
@@ -517,22 +518,11 @@ app.put("/api/state", async (req, res) => {
           updatedAt: now
         },
         $setOnInsert: {
-          leads: currentState.leads || [],
-          counselors: currentState.counselors || [],
-          allocation: currentState.allocation || [],
-          tasks: currentState.tasks || [],
           createdAt: now
         }
       },
-      {
-        upsert: true,
-        returnDocument: "after"
-      }
+      { upsert: true }
     );
-
-    // Fallback: if findOneAndUpdate returns null for some driver version, merge manually.
-    const written = result?.value ?? result ?? { ...currentState, ...sanitized, updatedAt: now };
-    const nextState = cacheStateDoc(written);
 
     return res.json(buildStateResponse(nextState));
   } catch (error) {
@@ -551,7 +541,7 @@ app.put("/api/state/reset", async (_req, res) => {
       clearedAt: now
     };
 
-    const result = await stateCollection.findOneAndUpdate(
+    const result = await stateCollection.updateOne(
       { _id: STATE_DOC_ID },
       {
         $set: resetFields,
@@ -560,14 +550,11 @@ app.put("/api/state/reset", async (_req, res) => {
           createdAt: now
         }
       },
-      {
-        upsert: true,
-        returnDocument: "after"
-      }
+      { upsert: true }
     );
 
-    const written = result?.value ?? result ?? resetFields;
-    const nextState = cacheStateDoc(written);
+    const currentState = await getStateDoc();
+    const nextState = cacheStateDoc({ ...currentState, ...resetFields });
 
     return res.json(buildStateResponse(nextState));
   } catch (error) {
