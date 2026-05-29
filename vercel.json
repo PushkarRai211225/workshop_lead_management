@@ -24,10 +24,17 @@
       }
     },
     {
-      "src": "/(.*\\.(css|js|png|jpg|jpeg|svg|ico|webp|woff2?))",
+      "src": "/(.*\\.(png|jpg|jpeg|svg|ico|webp|woff2?))",
       "dest": "server.js",
       "headers": {
         "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/(.*\\.(css|js))",
+      "dest": "server.js",
+      "headers": {
+        "Cache-Control": "no-cache"
       }
     },
     {
