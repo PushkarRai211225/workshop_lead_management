@@ -193,6 +193,206 @@ a {
   width: min(280px, 100%);
 }
 
+/* ═══════════════════════════════════════════════════
+   i-CRM  ·  PREMIUM FUTURISTIC ANIMATED LOGO
+═══════════════════════════════════════════════════ */
+
+/* Color cycle: Orange → Cyan → Purple → Pink */
+@keyframes icrm-color-cycle {
+  0%   { color: #ff6b00; text-shadow: 0 0 12px rgba(255,107,0,.95), 0 0 32px rgba(255,107,0,.6), 0 0 68px rgba(255,107,0,.28); }
+  25%  { color: #00d4ff; text-shadow: 0 0 12px rgba(0,212,255,.95), 0 0 32px rgba(0,212,255,.6), 0 0 68px rgba(0,212,255,.28); }
+  50%  { color: #8b5cf6; text-shadow: 0 0 12px rgba(139,92,246,.95), 0 0 32px rgba(139,92,246,.6), 0 0 68px rgba(139,92,246,.28); }
+  75%  { color: #ff0080; text-shadow: 0 0 12px rgba(255,0,128,.95), 0 0 32px rgba(255,0,128,.6), 0 0 68px rgba(255,0,128,.28); }
+  100% { color: #ff6b00; text-shadow: 0 0 12px rgba(255,107,0,.95), 0 0 32px rgba(255,107,0,.6), 0 0 68px rgba(255,107,0,.28); }
+}
+
+/* Shimmer light sweep across text */
+@keyframes icrm-shimmer {
+  0%   { transform: translateX(-130%) skewX(-18deg); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateX(260%) skewX(-18deg); opacity: 0; }
+}
+
+/* Soft breathing pulse */
+@keyframes icrm-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.78; }
+}
+
+/* Ambient radial glow pulsing */
+@keyframes icrm-ambient {
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  50%       { opacity: 0.48; transform: scale(1.18); }
+}
+
+/* Floating particles */
+@keyframes icrm-particle {
+  0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+  12%  { opacity: 0.95; }
+  88%  { opacity: 0.45; }
+  100% { transform: translateY(-58px) translateX(var(--px-drift, 0px)) scale(0.25); opacity: 0; }
+}
+
+/* ── Hero wrapper — login page brand only ── */
+.icrm-hero-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 24px 14px;
+  min-height: 88px;
+}
+
+/* ── Ambient radial glow behind text ── */
+.icrm-ambient {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+    rgba(0,212,255,.15) 0%,
+    rgba(139,92,246,.11) 42%,
+    rgba(255,0,128,.06) 65%,
+    transparent 75%);
+  animation: icrm-ambient 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ── Floating particle field ── */
+.icrm-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.icrm-particle {
+  position: absolute;
+  bottom: 6px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: icrm-particle var(--px-dur, 3s) var(--px-delay, 0s) ease-out infinite;
+}
+
+.icrm-particle:nth-child(1)  { left: 6%;  color: #ff6b00; --px-drift: -6px;  --px-dur: 3.2s; --px-delay: 0s;    }
+.icrm-particle:nth-child(2)  { left: 16%; color: #00d4ff; --px-drift:  5px;  --px-dur: 2.8s; --px-delay: 0.45s; }
+.icrm-particle:nth-child(3)  { left: 26%; color: #8b5cf6; --px-drift: -10px; --px-dur: 3.6s; --px-delay: 0.9s;  }
+.icrm-particle:nth-child(4)  { left: 36%; color: #ff0080; --px-drift:  7px;  --px-dur: 2.5s; --px-delay: 1.35s; }
+.icrm-particle:nth-child(5)  { left: 46%; color: #ff6b00; --px-drift: -5px;  --px-dur: 3.9s; --px-delay: 0.2s;  }
+.icrm-particle:nth-child(6)  { left: 56%; color: #00d4ff; --px-drift:  9px;  --px-dur: 2.9s; --px-delay: 0.7s;  }
+.icrm-particle:nth-child(7)  { left: 66%; color: #8b5cf6; --px-drift: -8px;  --px-dur: 3.4s; --px-delay: 1.1s;  }
+.icrm-particle:nth-child(8)  { left: 76%; color: #ff0080; --px-drift:  5px;  --px-dur: 2.7s; --px-delay: 1.6s;  }
+.icrm-particle:nth-child(9)  { left: 86%; color: #00d4ff; --px-drift: -7px;  --px-dur: 3.1s; --px-delay: 0.35s; }
+.icrm-particle:nth-child(10) { left: 22%; color: #ff6b00; --px-drift:  6px;  --px-dur: 4.1s; --px-delay: 0.85s; }
+.icrm-particle:nth-child(11) { left: 62%; color: #8b5cf6; --px-drift: -4px;  --px-dur: 2.6s; --px-delay: 1.8s;  }
+.icrm-particle:nth-child(12) { left: 92%; color: #ff0080; --px-drift: 10px;  --px-dur: 3.7s; --px-delay: 0.55s; }
+
+/* ── Logo container ── */
+.icrm-logo-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  z-index: 1;
+}
+
+/* ── Text wrapper — clips shimmer sweep ── */
+.icrm-text-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+/* Shimmer overlay */
+.icrm-text-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 36%;
+  background: linear-gradient(
+    108deg,
+    transparent 20%,
+    rgba(255,255,255,0.24) 50%,
+    transparent 80%
+  );
+  animation: icrm-shimmer 5.5s ease-in-out infinite;
+  animation-delay: 1.2s;
+  pointer-events: none;
+}
+
+/* ── Main i-CRM text ── */
+.icrm-logo-text {
+  display: block;
+  font-family: 'Orbitron', 'Exo 2', 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  animation:
+    icrm-color-cycle 7s ease-in-out infinite,
+    icrm-pulse       4s ease-in-out infinite;
+  line-height: 1.1;
+}
+
+/* Brand modifier — login page hero size */
+.icrm-logo--brand .icrm-logo-text {
+  font-size: 3.4rem;
+  letter-spacing: 0.22em;
+}
+
+/* ── DV Analytics mini badge ── */
+.icrm-dv-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  opacity: 0.58;
+  transition: opacity 0.3s ease;
+  margin-top: 1px;
+}
+
+.icrm-logo--brand .icrm-dv-badge {
+  opacity: 0.68;
+  margin-top: 6px;
+  gap: 7px;
+}
+
+.icrm-dv-badge:hover { opacity: 0.92; }
+
+.icrm-dv-by {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.icrm-logo--brand .icrm-dv-by {
+  font-size: 0.72rem;
+}
+
+.icrm-dv-img {
+  width: 52px;
+  height: auto;
+  display: block;
+  /* crisp 1px white outline following logo shape, no glow */
+  filter: drop-shadow(1px 0 0 #fff)
+          drop-shadow(-1px 0 0 #fff)
+          drop-shadow(0 1px 0 #fff)
+          drop-shadow(0 -1px 0 #fff);
+}
+
+.icrm-logo--brand .icrm-dv-img {
+  width: 84px;
+}
+
 .subtitle {
   color: var(--text-muted);
   font-size: 0.94rem;
@@ -1199,6 +1399,19 @@ html[data-theme="dark"] .theme-toggle__icon--moon {
 
   .sidebar-logo {
     width: 48px;
+  }
+
+  .icrm-logo-text {
+    font-size: 0.88rem;
+    letter-spacing: 0.07em;
+  }
+
+  .icrm-dv-badge {
+    display: none;
+  }
+
+  .icrm-text-wrap::after {
+    display: none;
   }
 
   .sidebar-link {
