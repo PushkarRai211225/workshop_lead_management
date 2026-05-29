@@ -172,34 +172,20 @@ export async function updateStateFields(fields) {
         // keepalive: true ensures the browser sends this request to completion
         // even if the user navigates away or reloads the page before the response
         // arrives. Without this, page navigation mid-write silently drops the PUT.
-        // For very large payloads (>64 KB) the browser ignores keepalive, so we
-        // try it and fall back gracefully.
-        let fetchOptions;
-        try {
-          fetchOptions = {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json"
-            },
-            body: JSON.stringify(nextFields),
-            keepalive: true
-          };
-          // Test keepalive feasibility by constructing a Request — browsers
-          // throw synchronously here if the body is too large for keepalive.
-          void new Request("/api/state", fetchOptions);
-        } catch (_keepAliveErr) {
-          // Payload too large for keepalive — omit the flag and rely on the
-          // retry loop to recover from any dropped connection.
-          fetchOptions = {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json"
-            },
-            body: JSON.stringify(nextFields)
-          };
-        }
+        // Browsers reject keepalive requests whose body exceeds 64 KB — check the
+        // serialised size directly instead of relying on new Request() which does
+        // NOT throw synchronously for oversized bodies in Chrome/Edge.
+        const body = JSON.stringify(nextFields);
+        const useKeepalive = body.length < 60 * 1024; // conservative threshold below 64 KB
+        const fetchOptions = {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body,
+          ...(useKeepalive ? { keepalive: true } : {})
+        };
         const { response, payload } = await fetchJson("/api/state", fetchOptions, PUT_TIMEOUT_MS);
 
         if (response.ok) {
