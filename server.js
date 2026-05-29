@@ -468,7 +468,7 @@ app.put("/api/preferences/:scope", async (req, res) => {
           createdAt: now
         }
       },
-      { upsert: true, writeConcern: { w: 1, j: true } }
+      { upsert: true }
     );
 
     return res.json({ ok: true, value });
@@ -526,8 +526,7 @@ app.put("/api/state", async (req, res) => {
       },
       {
         upsert: true,
-        returnDocument: "after",
-        writeConcern: { w: 1, j: true }
+        returnDocument: "after"
       }
     );
 
@@ -563,8 +562,7 @@ app.put("/api/state/reset", async (_req, res) => {
       },
       {
         upsert: true,
-        returnDocument: "after",
-        writeConcern: { w: 1, j: true }
+        returnDocument: "after"
       }
     );
 
@@ -613,7 +611,7 @@ app.put("/api/leads", async (req, res) => {
           createdAt: new Date().toISOString()
         }
       },
-      { upsert: true, writeConcern: { w: 1, j: true } }
+      { upsert: true }
     );
     return res.json({ ok: true });
   } catch (error) {
@@ -656,7 +654,7 @@ app.put("/api/counselors", async (req, res) => {
           createdAt: new Date().toISOString()
         }
       },
-      { upsert: true, writeConcern: { w: 1, j: true } }
+      { upsert: true }
     );
     return res.json({ ok: true });
   } catch (error) {
@@ -700,7 +698,7 @@ app.put("/api/allocation", async (req, res) => {
           createdAt: new Date().toISOString()
         }
       },
-      { upsert: true, writeConcern: { w: 1, j: true } }
+      { upsert: true }
     );
     return res.json({ ok: true });
   } catch (error) {
