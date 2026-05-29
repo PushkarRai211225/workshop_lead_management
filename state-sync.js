@@ -181,7 +181,8 @@ export async function updateStateFields(fields) {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Accept: "application/json"
+            Accept: "application/json",
+            ...(lastStateETag ? { "If-Match": lastStateETag } : {})
           },
           body,
           ...(useKeepalive ? { keepalive: true } : {})
@@ -189,6 +190,10 @@ export async function updateStateFields(fields) {
         const { response, payload } = await fetchJson("/api/state", fetchOptions, PUT_TIMEOUT_MS);
 
         if (response.ok) {
+          const etag = response.headers.get("etag");
+          if (etag) {
+            lastStateETag = etag;
+          }
           // Only replace in-memory state with the server response if no newer
           // optimistic update has been applied after this one. If a newer update
           // is already in memory we must not overwrite it with an older snapshot.

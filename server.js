@@ -206,6 +206,10 @@ function buildStateResponse(state) {
   };
 }
 
+function buildStateEtag(state) {
+  return `"${state?.updatedAt || "init"}"`.replace(/\s/g, "_");
+}
+
 async function initMongo() {
   if (stateCollection) {
     return;
@@ -483,7 +487,7 @@ app.get("/api/state", async (req, res) => {
     // Use updatedAt as a cheap ETag so clients can send If-None-Match and get
     // a 304 Not Modified when nothing has changed — avoiding re-transferring
     // the full (potentially 200 KB) payload on every 15 s poll.
-    const etag = `"${state.updatedAt || "init"}"`.replace(/\s/g, "_");
+    const etag = buildStateEtag(state);
     res.setHeader("ETag", etag);
     res.setHeader("Cache-Control", "no-cache"); // allow conditional GET, no blind caching
     if (req.headers["if-none-match"] === etag) {
@@ -502,8 +506,18 @@ app.put("/api/state", async (req, res) => {
       return res.status(400).json({ message: "No valid state fields provided." });
     }
 
-    const now = new Date().toISOString();
     const currentState = await getStateDoc();
+    const expectedEtag = String(req.headers["if-match"] || "").trim();
+    const currentEtag = buildStateEtag(currentState);
+
+    if (expectedEtag && expectedEtag !== currentEtag) {
+      return res.status(412).json({
+        message: "State changed on the server. Reload the latest data and retry your update.",
+        updatedAt: currentState.updatedAt || null
+      });
+    }
+
+    const now = new Date().toISOString();
     const nextState = cacheStateDoc({
       ...currentState,
       ...sanitized,
@@ -524,6 +538,7 @@ app.put("/api/state", async (req, res) => {
       { upsert: true }
     );
 
+    res.setHeader("ETag", buildStateEtag(nextState));
     return res.json(buildStateResponse(nextState));
   } catch (error) {
     return res.status(500).json({ message: "Failed to update state", details: error.message });
