@@ -81,7 +81,7 @@ function warmSidebarRoutes() {
 
 function hydrateRoleTag(session) {
   const roleTags = document.querySelectorAll("[data-role-tag]");
-  const text = session?.role === "admin" ? "Admin" : "Counselor";
+  const text = session?.role === "admin" ? "Admin" : session?.role === "marketing" ? "Marketing" : "Counselor";
   roleTags.forEach((tag) => {
     tag.textContent = text;
   });
@@ -137,6 +137,10 @@ function enforceAccess(session) {
     (currentRoute === "counselor-management.html" || currentRoute === "meta-integration.html") &&
     session.role !== "admin"
   ) {
+    // marketing users are allowed on meta-integration.html
+    if (currentRoute === "meta-integration.html" && session.role === "marketing") {
+      return true;
+    }
     const fallback =
       session.role === "counselor"
         ? getFirstAllowedPage(getCounselorPermissions(session))
