@@ -8,15 +8,17 @@ const existingSession = await refreshSession().catch(() => null);
 if (existingSession?.role) {
   window.location.href = existingSession.role === "admin"
     ? "dashboard.html"
-    : existingSession.permissions?.preWorkshop
-      ? "pre-workshop.html"
-      : existingSession.permissions?.postWorkshop
-        ? "post-workshop.html"
-        : existingSession.permissions?.lostLeads
-          ? "lost-leads.html"
-          : existingSession.permissions?.monitoring
-            ? "monitoring.html"
-            : "index.html";
+    : existingSession.role === "marketing"
+      ? "meta-integration.html"
+      : existingSession.permissions?.preWorkshop
+        ? "pre-workshop.html"
+        : existingSession.permissions?.postWorkshop
+          ? "post-workshop.html"
+          : existingSession.permissions?.lostLeads
+            ? "lost-leads.html"
+            : existingSession.permissions?.monitoring
+              ? "monitoring.html"
+              : "index.html";
 }
 
 const roleButtons = document.querySelectorAll(".role-btn");

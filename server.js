@@ -194,6 +194,7 @@ function normalizeStateDoc(state = {}) {
     _id: STATE_DOC_ID,
     leads: Array.isArray(state.leads) ? state.leads : [],
     counselors: Array.isArray(state.counselors) ? state.counselors : [],
+    marketingUsers: Array.isArray(state.marketingUsers) ? state.marketingUsers : [],
     allocation: Array.isArray(state.allocation) ? state.allocation : [],
     tasks: Array.isArray(state.tasks) ? state.tasks : [],
     createdAt: state.createdAt || new Date().toISOString(),
@@ -213,6 +214,7 @@ function buildStateResponse(state) {
   return {
     leads: normalized.leads,
     counselors: normalized.counselors,
+    marketingUsers: normalized.marketingUsers,
     allocation: normalized.allocation,
     tasks: normalized.tasks,
     updatedAt: normalized.updatedAt || null,
@@ -555,12 +557,12 @@ app.post("/api/meta/webhook", async (req, res) => {
   }
 });
 
-// Get Meta integration config (admin only).
+// Get Meta integration config (admin or marketing).
 app.get("/api/meta/config", async (req, res) => {
   try {
     const activeSession = await getSessionFromRequest(req);
-    if (!activeSession || activeSession.session.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required." });
+    if (!activeSession || !["admin", "marketing"].includes(activeSession.session.role)) {
+      return res.status(403).json({ message: "Access required." });
     }
     const config = await getMetaConfig();
     // Never return the raw app secret or access token to the browser;
@@ -627,12 +629,12 @@ app.put("/api/meta/config", async (req, res) => {
   }
 });
 
-// Get recent webhook logs (admin only).
+// Get recent webhook logs (admin or marketing).
 app.get("/api/meta/logs", async (req, res) => {
   try {
     const activeSession = await getSessionFromRequest(req);
-    if (!activeSession || activeSession.session.role !== "admin") {
-      return res.status(403).json({ message: "Admin access required." });
+    if (!activeSession || !["admin", "marketing"].includes(activeSession.session.role)) {
+      return res.status(403).json({ message: "Access required." });
     }
     const limit = Math.min(Number(req.query.limit) || 50, MAX_META_LOGS);
     const logs = await metaLogsCollection
@@ -767,6 +769,33 @@ app.post("/api/auth/login", async (req, res) => {
         session,
         landing: "dashboard.html"
       });
+    }
+
+    if (role === "marketing") {
+      const state = await getStateDoc();
+      const marketingUsers = Array.isArray(state.marketingUsers) ? state.marketingUsers : [];
+      const email = identifier.toLowerCase();
+      const marketingUser = marketingUsers.find(
+        (item) => String(item.email || "").trim().toLowerCase() === email && String(item.password || "") === password
+      );
+
+      if (!marketingUser) {
+        if (!marketingUsers.length) {
+          return res.status(404).json({
+            message: "Marketing credentials are not available. Make sure marketing user records exist in the shared database."
+          });
+        }
+        return res.status(401).json({ message: "Invalid credentials for selected role." });
+      }
+
+      const session = await persistSession(res, {
+        role,
+        name: marketingUser.name,
+        email: marketingUser.email,
+        permissions: { metaIntegration: true }
+      });
+
+      return res.json({ session, landing: "meta-integration.html" });
     }
 
     if (role !== "counselor") {

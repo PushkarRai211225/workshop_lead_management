@@ -4,9 +4,9 @@ import { bootstrapLocalState, getSession, getCounselors, startStatePolling } fro
 await bootstrapLocalState();
 
 const session = getSession();
-if (!session || session.role !== "admin") {
+if (!session || !["admin", "marketing"].includes(session.role)) {
   window.location.href = "index.html";
-  throw new Error("Admin access required.");
+  throw new Error("Access required.");
 }
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
