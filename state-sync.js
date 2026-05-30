@@ -51,6 +51,7 @@ function normalizeState(snapshot = {}) {
   return {
     leads: Array.isArray(snapshot?.leads) ? snapshot.leads : [],
     counselors: Array.isArray(snapshot?.counselors) ? snapshot.counselors : [],
+    marketingUsers: Array.isArray(snapshot?.marketingUsers) ? snapshot.marketingUsers : [],
     allocation: Array.isArray(snapshot?.allocation) ? snapshot.allocation : [],
     tasks: Array.isArray(snapshot?.tasks) ? snapshot.tasks : []
   };
@@ -422,6 +423,14 @@ export async function saveLeads(leads) {
 
 export async function saveCounselors(counselors) {
   return updateStateFields({ counselors });
+}
+
+export function getMarketingUsers() {
+  return getStateField("marketingUsers");
+}
+
+export async function saveMarketingUsers(marketingUsers) {
+  return updateStateFields({ marketingUsers });
 }
 
 export async function saveAllocation(allocation) {

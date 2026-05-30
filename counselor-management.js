@@ -4,9 +4,11 @@ import {
   getAllocation as getStoredAllocation,
   getCounselors as getStoredCounselors,
   getLeads as getStoredLeads,
+  getMarketingUsers as getStoredMarketingUsers,
   saveAllocation as persistAllocation,
   saveCounselors as persistCounselors,
   saveLeads as persistLeads,
+  saveMarketingUsers as persistMarketingUsers,
   startStatePolling,
   syncStateFromLocalAndVerify
 } from "./state-sync.js";
@@ -312,5 +314,138 @@ counselorForm.addEventListener("submit", async (event) => {
 renderCounselorList();
 const stopStatePolling = startStatePolling(() => {
   renderCounselorList();
+  renderMarketingList();
 });
 registerPageCleanup(stopStatePolling);
+
+// ── Marketing Users ───────────────────────────────────────────────────────────
+
+const marketingForm = document.getElementById("marketingForm");
+const marketingFormMessage = document.getElementById("marketingFormMessage");
+const marketingList = document.getElementById("marketingList");
+
+function setMarketingMessage(text, isError = true) {
+  marketingFormMessage.textContent = text;
+  marketingFormMessage.style.color = isError ? "var(--danger)" : "var(--success)";
+}
+
+function getMarketingUsers() {
+  return getStoredMarketingUsers().map((item) => ({
+    ...item,
+    email: String(item.email || "").toLowerCase()
+  }));
+}
+
+function saveMarketingUsers(users) {
+  return persistMarketingUsers(users);
+}
+
+async function removeMarketingUser(userId) {
+  const users = getMarketingUsers();
+  const target = users.find((item) => item.id === userId);
+  if (!target) return;
+
+  const confirmed = window.confirm(`Remove marketing user ${target.name}?`);
+  if (!confirmed) return;
+
+  const next = users.filter((item) => item.id !== userId);
+  const result = await saveMarketingUsers(next);
+  if (!result || result.ok === false) {
+    setMarketingMessage(result?.message || "Failed to remove marketing user.", true);
+    return;
+  }
+
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMarketingMessage(syncResult.message || "Backend confirmation failed.", true);
+    return;
+  }
+
+  setMarketingMessage(`${target.name} removed successfully.`, false);
+  renderMarketingList();
+}
+
+function renderMarketingList() {
+  const users = getMarketingUsers();
+
+  if (!users.length) {
+    marketingList.innerHTML = "<p style=\"opacity:0.5;font-size:0.85rem;\">No marketing users yet.</p>";
+    return;
+  }
+
+  marketingList.innerHTML = `
+    <div class="table-scroll">
+      <table class="compact-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${users.map((u) => `
+            <tr>
+              <td>${u.name}</td>
+              <td>${u.email}</td>
+              <td>
+                <button type="button" class="btn-ghost remove-marketing-btn" data-user-id="${u.id}">Remove</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.querySelectorAll(".remove-marketing-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-user-id");
+      if (id) void removeMarketingUser(id);
+    });
+  });
+}
+
+marketingForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const name = document.getElementById("marketingName").value.trim();
+  const email = document.getElementById("marketingEmail").value.trim().toLowerCase();
+  const password = document.getElementById("marketingPassword").value.trim();
+
+  if (!name || !email || !password) {
+    setMarketingMessage("All fields are required.", true);
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setMarketingMessage("Enter a valid email address.", true);
+    return;
+  }
+
+  const users = getMarketingUsers();
+  if (users.some((u) => u.email === email)) {
+    setMarketingMessage("A marketing user with this email already exists.", true);
+    return;
+  }
+
+  users.push({ id: `m-${Date.now()}`, name, email, password });
+
+  const result = await saveMarketingUsers(users);
+  if (!result || result.ok === false) {
+    setMarketingMessage(result?.message || "Failed to save marketing user.", true);
+    return;
+  }
+
+  const syncResult = await syncStateFromLocalAndVerify();
+  if (!syncResult.ok) {
+    setMarketingMessage(syncResult.message || "Backend confirmation failed.", true);
+    return;
+  }
+
+  marketingForm.reset();
+  setMarketingMessage("Marketing user created successfully.", false);
+  renderMarketingList();
+});
+
+renderMarketingList();

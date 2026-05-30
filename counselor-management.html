@@ -105,6 +105,34 @@
           </div>
         </div>
       </section>
+
+      <section class="card admin-panel" style="margin-top:1.5rem;">
+        <div class="management-grid">
+          <div class="import-block">
+            <h4>Create Marketing User</h4>
+            <form id="marketingForm" class="auth-form">
+              <label for="marketingName">Name</label>
+              <input id="marketingName" type="text" required />
+
+              <label for="marketingEmail">Email</label>
+              <input id="marketingEmail" type="email" required />
+
+              <label for="marketingPassword">Password</label>
+              <input id="marketingPassword" type="password" required />
+
+              <div class="management-actions">
+                <button type="submit" class="btn-primary">Create Marketing User</button>
+              </div>
+            </form>
+            <p id="marketingFormMessage" class="message" aria-live="polite"></p>
+          </div>
+
+          <div class="import-block">
+            <h4>Existing Marketing Users</h4>
+            <div id="marketingList"></div>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 

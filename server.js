@@ -698,6 +698,9 @@ function sanitizeState(payload = {}) {
   if (Array.isArray(payload.counselors)) {
     next.counselors = payload.counselors;
   }
+  if (Array.isArray(payload.marketingUsers)) {
+    next.marketingUsers = payload.marketingUsers;
+  }
   if (Array.isArray(payload.allocation)) {
     next.allocation = payload.allocation;
   }
