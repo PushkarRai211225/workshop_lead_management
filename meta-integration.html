@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meta Integration | DV Workshop Lead Platform</title>
+  <link rel="icon" type="image/png" href="Logos/DV-Logo.png" />
+  <script src="theme-bootstrap.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ── Page layout ── */
+    .meta-page { padding: 1.5rem 1.5rem 2.5rem; display: flex; flex-direction: column; gap: 1.75rem; }
+    .meta-page .card { padding: var(--space-4); }
+
+    /* ── Section titles ── */
+    .meta-section-title { margin-bottom: 1.25rem; }
+    .meta-section-title h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+    .meta-section-title p  { margin: 0; font-size: 0.8rem; opacity: 0.6; margin-top: 2px; }
+
+    /* ── Status bar ── */
+    .meta-status-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 900px) { .meta-status-bar { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 520px) { .meta-status-bar { grid-template-columns: 1fr; } }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      border: 1.5px solid transparent;
+    }
+    .status-pill--ok  { background: #f0fdf4; border-color: #bbf7d0; }
+    .status-pill--err { background: #fef2f2; border-color: #fecaca; }
+    [data-theme="dark"] .status-pill--ok  { background: #052e16; border-color: #14532d; }
+    [data-theme="dark"] .status-pill--err { background: #1c0a0a; border-color: #7f1d1d; }
+    .status-pill__dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-pill--ok  .status-pill__dot { background: #22c55e; }
+    .status-pill--err .status-pill__dot { background: #ef4444; }
+    .status-pill__body { flex: 1; min-width: 0; }
+    .status-pill__label { font-size: 0.72rem; opacity: 0.6; line-height: 1; }
+    .status-pill__value { font-size: 0.85rem; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status-pill--ok  .status-pill__value { color: #15803d; }
+    .status-pill--err .status-pill__value { color: #b91c1c; }
+    [data-theme="dark"] .status-pill--ok  .status-pill__value { color: #4ade80; }
+    [data-theme="dark"] .status-pill--err .status-pill__value { color: #f87171; }
+
+    /* ── Setup steps ── */
+    .setup-steps { display: flex; flex-direction: column; gap: 0; }
+    .setup-step {
+      display: flex;
+      gap: 1rem;
+      padding: 0 0 1.25rem 0;
+      position: relative;
+    }
+    .setup-step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      left: 15px; top: 32px;
+      width: 2px;
+      bottom: 0;
+      background: var(--border, #e5e7eb);
+    }
+    .setup-step__num {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--accent, #3b82f6);
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      z-index: 1;
+      position: relative;
+    }
+    .setup-step__body { flex: 1; padding-top: 5px; }
+    .setup-step__title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.3rem; }
+    .setup-step__desc { font-size: 0.83rem; line-height: 1.65; opacity: 0.8; }
+    .setup-step__desc code {
+      background: var(--code-bg, rgba(0,0,0,0.06));
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      font-size: 0.85em;
+    }
+    [data-theme="dark"] .setup-step__desc code { background: rgba(255,255,255,0.1); }
+
+    /* ── Config grid ── */
+    .meta-config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    @media (max-width: 860px) { .meta-config-grid { grid-template-columns: 1fr; } }
+
+    /* ── Field group divider ── */
+    .field-divider {
+      height: 1px;
+      background: var(--border, #e5e7eb);
+      margin: 1.25rem 0;
+    }
+
+    /* ── Form group spacing ── */
+    .form-group { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-group label { font-size: 0.88rem; font-weight: 600; color: var(--text-muted, #64748b); }
+    .field-hint { font-size: 0.78rem; opacity: 0.6; margin: 0.2rem 0 0; line-height: 1.5; }
+
+    /* ── Inline input+button rows ── */
+    .input-btn-row { display: flex; align-items: center; gap: 0.5rem; }
+    .input-btn-row input { flex: 1; }
+    .input-btn-row button { white-space: nowrap; padding: 0.45rem 0.9rem; font-size: 0.82rem; }
+
+    /* ── Form IDs ── */
+    .form-ids-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .form-id-row { display: flex; align-items: center; gap: 0.5rem; }
+    .form-id-row input { flex: 1; }
+    .remove-form-id-btn {
+      padding: 0.3rem 0.6rem; font-size: 0.82rem;
+      background: var(--danger, #ef4444); color: #fff;
+      border: none; border-radius: 6px; cursor: pointer;
+    }
+
+    /* ── Credential status chip ── */
+    .cred-status {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+    }
+    .cred-status--ok  { background: #d1fae5; color: #065f46; }
+    .cred-status--err { background: #fee2e2; color: #991b1b; }
+    [data-theme="dark"] .cred-status--ok  { background: #064e3b; color: #6ee7b7; }
+    [data-theme="dark"] .cred-status--err { background: #7f1d1d; color: #fca5a5; }
+
+    /* ── Enable toggle ── */
+    .enable-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1rem;
+      border-radius: 10px;
+      border: 1.5px solid var(--border, #e5e7eb);
+      margin-top: 0.25rem;
+    }
+    .enable-row__left { display: flex; flex-direction: column; gap: 2px; }
+    .enable-row__label { font-weight: 700; font-size: 0.9rem; }
+    .enable-row__hint  { font-size: 0.78rem; opacity: 0.6; }
+    .switch {
+      position: relative; display: inline-block;
+      width: 48px; height: 26px; flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: #d1d5db; border-radius: 26px; transition: 0.2s;
+    }
+    .switch-slider::before {
+      content: ""; position: absolute;
+      height: 20px; width: 20px; left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%; transition: 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .switch input:checked + .switch-slider { background: #22c55e; }
+    .switch input:checked + .switch-slider::before { transform: translateX(22px); }
+
+    /* ── Save bar ── */
+    .save-bar {
+      display: flex; align-items: center;
+      gap: 0.75rem; flex-wrap: wrap;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border, #e5e7eb);
+      margin-top: 1.25rem;
+    }
+
+    /* ── Round-robin stat cards ── */
+    .rr-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (max-width: 620px) { .rr-stats-grid { grid-template-columns: 1fr 1fr; } }
+    .rr-kpi {
+      padding: 1rem;
+      border-radius: 10px;
+      background: var(--surface-alt, #f8fafc);
+      border: 1.5px solid var(--border, #e5e7eb);
+      display: flex; flex-direction: column; gap: 0.2rem;
+    }
+    [data-theme="dark"] .rr-kpi { background: rgba(255,255,255,0.04); }
+    .rr-kpi__label { font-size: 0.75rem; opacity: 0.6; font-weight: 500; }
+    .rr-kpi__value { font-size: 1.4rem; font-weight: 800; }
+    .rr-kpi__sub   { font-size: 0.75rem; opacity: 0.55; }
+
+    /* ── Note callout ── */
+    .note-callout {
+      background: #fefce8; border: 1.5px solid #fde68a;
+      border-radius: 8px; padding: 0.65rem 0.9rem;
+      font-size: 0.82rem; line-height: 1.55;
+    }
+    [data-theme="dark"] .note-callout { background: #1c1400; border-color: #78350f; }
+
+    /* ── Logs ── */
+    .log-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;
+    }
+    .log-filter-group { display: flex; align-items: center; gap: 0.5rem; }
+    .log-filter-group select { font-size: 0.82rem; padding: 0.35rem 0.6rem; }
+    .log-table-wrap { overflow-x: auto; max-height: 440px; overflow-y: auto; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; }
+    .log-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .log-table th,
+    .log-table td { padding: 0.55rem 0.85rem; text-align: left; border-bottom: 1px solid var(--border, #e5e7eb); }
+    .log-table tr:last-child td { border-bottom: none; }
+    .log-table th {
+      font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+      opacity: 0.6; position: sticky; top: 0;
+      background: var(--surface-alt, #f8fafc);
+    }
+    [data-theme="dark"] .log-table th { background: var(--surface, #1e2535); }
+    .log-table tr:hover td { background: var(--surface-alt, #f8fafc); }
+    [data-theme="dark"] .log-table tr:hover td { background: rgba(255,255,255,0.03); }
+    .log-type {
+      display: inline-block; padding: 0.15rem 0.55rem;
+      border-radius: 4px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .log-type--success { background: #d1fae5; color: #065f46; }
+    .log-type--error   { background: #fee2e2; color: #991b1b; }
+    .log-type--ignored { background: #fef3c7; color: #92400e; }
+    [data-theme="dark"] .log-type--success { background: #064e3b; color: #6ee7b7; }
+    [data-theme="dark"] .log-type--error   { background: #7f1d1d; color: #fca5a5; }
+    [data-theme="dark"] .log-type--ignored { background: #78350f; color: #fcd34d; }
+    .log-empty { text-align: center; padding: 2.5rem; opacity: 0.45; }
+  </style>
+</head>
+<body class="dashboard-body">
+  <div class="layout-root">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="icrm-logo-wrap">
+          <div class="icrm-text-wrap">
+            <span class="icrm-logo-text">i-CRM</span>
+          </div>
+          <div class="icrm-dv-badge">
+            <span class="icrm-dv-by">by</span>
+            <img src="Logos/DV-Logo.png" alt="DV Analytics" class="icrm-dv-img" />
+          </div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="sidebar-link">Dashboard</a>
+        <a href="pre-workshop.html" class="sidebar-link">Workshop Calling</a>
+        <a href="post-workshop.html" class="sidebar-link">Admission Calling</a>
+        <a href="task-tracker.html" class="sidebar-link" data-counselor-only="true">Task Tracker</a>
+        <a href="lost-leads.html" class="sidebar-link">Lost Leads</a>
+        <a href="monitoring.html" class="sidebar-link">Monitoring</a>
+      </nav>
+      <div class="sidebar-bottom-links" style="display:flex;flex-direction:column;gap:0;">
+        <a href="counselor-management.html" class="sidebar-link sidebar-link-bottom admin-only" data-admin-only="true">Counselor Management</a>
+        <a href="meta-integration.html" class="sidebar-link sidebar-link-bottom admin-only" data-admin-only="true">Meta Integration</a>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Meta Lead Ads Integration</h1>
+          <p>Automate lead capture from Facebook &amp; Instagram with round-robin assignment.</p>
+        </div>
+        <div class="topbar-profile">
+          <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false">
+            <span class="theme-toggle__stack" aria-hidden="true">
+              <span class="theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                  <circle cx="12" cy="12" r="4.5"></circle>
+                  <path d="M12 1.8v2.4M12 19.8v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M1.8 12h2.4M19.8 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"></path>
+                </svg>
+              </span>
+              <span class="theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                  <path d="M20.2 14.7A8.2 8.2 0 0 1 9.3 3.8a8.5 8.5 0 1 0 10.9 10.9Z"></path>
+                </svg>
+              </span>
+            </span>
+            <span class="theme-toggle__label" data-theme-label>Light</span>
+          </button>
+          <span class="role-tag" data-role-tag></span>
+          <button data-logout class="btn-ghost" type="button">Log out</button>
+        </div>
+      </header>
+
+      <div class="meta-page">
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             SECTION 1 — Connection Status
+        ════════════════════════════════════════════════════════════════════ -->
+        <section class="card">
+          <div class="meta-section-title">
+            <h3>Connection Status</h3>
+            <p>Live status of all integration requirements</p>
+          </div>
+
+          <div class="meta-status-bar">
+            <div class="status-pill" id="statusPillIntegration">
+              <div class="status-pill__dot"></div>
+              <div class="status-pill__body">
+                <div class="status-pill__label">Integration</div>
+                <div class="status-pill__value" id="statusValIntegration">Disabled</div>
+              </div>
+            </div>
+            <div class="status-pill" id="statusPillAppSecret">
+              <div class="status-pill__dot"></div>
+              <div class="status-pill__body">
+                <div class="status-pill__label">App Secret</div>
+                <div class="status-pill__value" id="statusValAppSecret">Not set</div>
+              </div>
+            </div>
+            <div class="status-pill" id="statusPillToken">
+              <div class="status-pill__dot"></div>
+              <div class="status-pill__body">
+                <div class="status-pill__label">Page Access Token</div>
+                <div class="status-pill__value" id="statusValToken">Not set</div>
+              </div>
+            </div>
+            <div class="status-pill" id="statusPillVerifyToken">
+              <div class="status-pill__dot"></div>
+              <div class="status-pill__body">
+                <div class="status-pill__label">Verify Token</div>
+                <div class="status-pill__value" id="statusValVerifyToken">Not set</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             SECTION 2 — Setup Guide
+        ════════════════════════════════════════════════════════════════════ -->
+        <section class="card">
+          <div class="meta-section-title">
+            <h3>Setup Guide</h3>
+            <p>Complete these steps once to connect Meta Lead Ads</p>
+          </div>
+
+          <div class="setup-steps">
+            <div class="setup-step">
+              <div class="setup-step__num">1</div>
+              <div class="setup-step__body">
+                <div class="setup-step__title">Create a Meta App</div>
+                <div class="setup-step__desc">
+                  Go to <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a>, create a new app of type <strong>Business</strong>, and add the <em>Facebook Login for Business</em> and <em>Webhooks</em> products.
+                </div>
+              </div>
+            </div>
+            <div class="setup-step">
+              <div class="setup-step__num">2</div>
+              <div class="setup-step__body">
+                <div class="setup-step__title">Configure the Webhook in Meta</div>
+                <div class="setup-step__desc">
+                  In your app's Webhooks settings, subscribe to the <code>leadgen</code> field on the <em>Page</em> object.<br>
+                  Set <strong>Callback URL</strong> to the Webhook URL shown below. Set <strong>Verify Token</strong> to the value you generate in the Configuration section below.
+                </div>
+              </div>
+            </div>
+            <div class="setup-step">
+              <div class="setup-step__num">3</div>
+              <div class="setup-step__body">
+                <div class="setup-step__title">Generate a Long-Lived Page Access Token</div>
+                <div class="setup-step__desc">
+                  In the <em>Graph API Explorer</em>, select your app and your Facebook Page, then generate a token with <code>pages_manage_metadata</code>, <code>pages_read_engagement</code>, and <code>leads_retrieval</code> permissions.
+                </div>
+              </div>
+            </div>
+            <div class="setup-step">
+              <div class="setup-step__num">4</div>
+              <div class="setup-step__body">
+                <div class="setup-step__title">Subscribe your Page to the App</div>
+                <div class="setup-step__desc">
+                  Using the Graph API Explorer, call:<br>
+                  <code>POST /{page-id}/subscribed_apps?subscribed_fields=leadgen&amp;access_token={page-access-token}</code>
+                </div>
+              </div>
+            </div>
+            <div class="setup-step">
+              <div class="setup-step__num">5</div>
+              <div class="setup-step__body">
+                <div class="setup-step__title">Fill in credentials below and enable</div>
+                <div class="setup-step__desc">
+                  Enter the App Secret, Page Access Token, and Verify Token in the Configuration section. Save, then toggle the integration to <strong>Enabled</strong>.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             SECTION 3 — Configuration
+        ════════════════════════════════════════════════════════════════════ -->
+        <section class="card">
+          <div class="meta-section-title">
+            <h3>Configuration</h3>
+            <p>Webhook endpoint, credentials, and lead filters</p>
+          </div>
+
+          <div class="meta-config-grid">
+
+            <!-- Left column — Webhook Settings -->
+            <div>
+              <p style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.5;margin:0 0 .9rem;">Webhook Settings</p>
+
+              <div class="form-group">
+                <label>Webhook URL <span style="opacity:.55;font-weight:400;font-size:.8rem;">— paste into Meta</span></label>
+                <div class="input-btn-row">
+                  <input id="webhookUrl" type="text" readonly />
+                  <button type="button" class="btn-secondary" id="copyWebhookUrlBtn">Copy</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="verifyTokenInput">Verify Token</label>
+                <div class="input-btn-row">
+                  <input id="verifyTokenInput" type="text" placeholder="Generate or enter a random string" />
+                  <button type="button" class="btn-secondary" id="generateVerifyTokenBtn">Generate</button>
+                </div>
+                <p class="field-hint">Must match exactly what you enter in the Meta Webhooks settings.</p>
+              </div>
+
+              <div class="field-divider"></div>
+
+              <p style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.5;margin:0 0 .9rem;">Lead Filters <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></p>
+
+              <div class="form-group">
+                <label for="pageIdInput">Facebook Page ID</label>
+                <input id="pageIdInput" type="text" placeholder="e.g. 123456789012345" />
+                <p class="field-hint">Leads from other pages are ignored. Leave blank to accept all pages.</p>
+              </div>
+
+              <div class="form-group">
+                <label>Form ID Whitelist</label>
+                <div id="formIdsList" class="form-ids-list"></div>
+                <button type="button" class="btn-secondary" id="addFormIdBtn" style="font-size:.82rem;padding:.4rem .8rem;">+ Add Form ID</button>
+                <p class="field-hint">If empty, leads from all forms on your page are accepted.</p>
+              </div>
+            </div>
+
+            <!-- Right column — Credentials & Enable -->
+            <div>
+              <p style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.5;margin:0 0 .9rem;">API Credentials</p>
+
+              <div class="form-group">
+                <label for="appSecretInput">
+                  App Secret
+                  <span id="appSecretStatus" class="cred-status cred-status--err">Not set</span>
+                </label>
+                <div class="input-btn-row">
+                  <input id="appSecretInput" type="password" placeholder="Leave blank to keep existing" autocomplete="off" />
+                  <button type="button" class="btn-secondary toggle-secret-btn" data-target="appSecretInput">Show</button>
+                </div>
+                <p class="field-hint">Found in Meta App Dashboard → Settings → Basic.</p>
+              </div>
+
+              <div class="form-group">
+                <label for="pageAccessTokenInput">
+                  Page Access Token
+                  <span id="pageAccessTokenStatus" class="cred-status cred-status--err">Not set</span>
+                </label>
+                <div class="input-btn-row">
+                  <input id="pageAccessTokenInput" type="password" placeholder="Leave blank to keep existing" autocomplete="off" />
+                  <button type="button" class="btn-secondary toggle-secret-btn" data-target="pageAccessTokenInput">Show</button>
+                </div>
+                <p class="field-hint">Long-lived token with <code>leads_retrieval</code> permission.</p>
+              </div>
+
+              <div class="field-divider"></div>
+
+              <p style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.5;margin:0 0 .75rem;">Activation</p>
+
+              <div class="enable-row">
+                <div class="enable-row__left">
+                  <span class="enable-row__label">Enable Meta Integration</span>
+                  <span class="enable-row__hint">Webhook will start receiving leads when enabled</span>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="enabledToggle" />
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+
+              <div class="save-bar">
+                <button type="button" class="btn-primary" id="saveConfigBtn">Save Settings</button>
+                <span id="saveConfigMessage" style="font-size:.85rem;"></span>
+              </div>
+            </div>
+
+          </div><!-- /.meta-config-grid -->
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             SECTION 4 — Round-Robin Assignment
+        ════════════════════════════════════════════════════════════════════ -->
+        <section class="card">
+          <div class="meta-section-title">
+            <h3>Round-Robin Assignment</h3>
+            <p>Meta leads are distributed to counselors one by one in sequence</p>
+          </div>
+
+          <div class="note-callout" style="margin-bottom:1.25rem;">
+            <span>File-import leads continue to use the existing <strong>percentage-based allocation</strong>. Only leads arriving via the Meta webhook use round-robin.</span>
+          </div>
+
+          <div class="rr-stats-grid">
+            <div class="rr-kpi">
+              <span class="rr-kpi__label">Total Meta Leads Assigned</span>
+              <span class="rr-kpi__value" id="rrIndexDisplay">—</span>
+              <span class="rr-kpi__sub">since last reset</span>
+            </div>
+            <div class="rr-kpi">
+              <span class="rr-kpi__label">Next Assigned To</span>
+              <span class="rr-kpi__value" id="rrNextCounselor">—</span>
+              <span class="rr-kpi__sub">next incoming lead</span>
+            </div>
+            <div class="rr-kpi">
+              <span class="rr-kpi__label">Active Counselors</span>
+              <span class="rr-kpi__value" id="rrCounselorCount">—</span>
+              <span class="rr-kpi__sub">in rotation</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+            <button type="button" class="btn-secondary" id="resetRrBtn">Reset Round-Robin</button>
+            <span id="rrMessage" style="font-size:.85rem;"></span>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             SECTION 5 — Webhook Logs
+        ════════════════════════════════════════════════════════════════════ -->
+        <section class="card">
+          <div class="meta-section-title">
+            <h3>Webhook Logs</h3>
+            <p>Last 50 incoming events — newest first</p>
+          </div>
+
+          <div class="log-toolbar">
+            <div class="log-filter-group">
+              <label for="logTypeFilter" style="font-size:.82rem;font-weight:600;opacity:.65;">Filter:</label>
+              <select id="logTypeFilter">
+                <option value="all">All events</option>
+                <option value="success">Success</option>
+                <option value="error">Error</option>
+                <option value="ignored">Ignored</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:.5rem;">
+              <button type="button" class="btn-secondary" id="refreshLogsBtn" style="font-size:.82rem;padding:.4rem .8rem;">↻ Refresh</button>
+              <button type="button" class="btn-danger" id="clearLogsBtn" style="font-size:.82rem;padding:.4rem .8rem;">Clear All</button>
+            </div>
+          </div>
+
+          <div class="log-table-wrap">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th style="width:140px;">Time</th>
+                  <th style="width:90px;">Status</th>
+                  <th>Message</th>
+                  <th>Lead → Counselor</th>
+                  <th>Campaign</th>
+                </tr>
+              </thead>
+              <tbody id="logsTableBody">
+                <tr><td colspan="5" class="log-empty">Loading logs…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div><!-- /.meta-page -->
+    </div><!-- /.main-content -->
+  </div><!-- /.layout-root -->
+
+  <script type="module" src="meta-integration.js"></script>
+  <script type="module" src="layouts.js"></script>
+</body>
+</html>

@@ -133,7 +133,10 @@ function enforceAccess(session) {
     return false;
   }
 
-  if (currentRoute === "counselor-management.html" && session.role !== "admin") {
+  if (
+    (currentRoute === "counselor-management.html" || currentRoute === "meta-integration.html") &&
+    session.role !== "admin"
+  ) {
     const fallback =
       session.role === "counselor"
         ? getFirstAllowedPage(getCounselorPermissions(session))
