@@ -119,15 +119,34 @@ function applyRoleVisibility(session) {
   const counselorOnlyElements = document.querySelectorAll("[data-counselor-only='true']");
   const isAdmin = session.role === "admin";
   const isCounselor = session.role === "counselor";
+  const isMarketing = session.role === "marketing";
   adminOnlyElements.forEach((element) => {
     element.classList.toggle("hidden", !isAdmin);
   });
   counselorOnlyElements.forEach((element) => {
     element.classList.toggle("hidden", !isCounselor);
   });
+  // Hide the entire sidebar for marketing users — they only have meta-integration.html
+  if (isMarketing) {
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar) sidebar.style.display = "none";
+    const mainContent = document.querySelector(".main-content");
+    if (mainContent) mainContent.style.marginLeft = "0";
+    const layoutRoot = document.querySelector(".layout-root");
+    if (layoutRoot) layoutRoot.style.gridTemplateColumns = "1fr";
+  }
 }
 
 function enforceAccess(session) {
+  // Marketing users: only allowed on meta-integration.html
+  if (session.role === "marketing") {
+    if (currentRoute !== "meta-integration.html") {
+      window.location.href = "meta-integration.html";
+      return false;
+    }
+    return true;
+  }
+
   if (currentRoute === "task-tracker.html" && session.role !== "counselor") {
     window.location.href = session.role === "admin" ? "dashboard.html" : "index.html";
     return false;
@@ -137,10 +156,6 @@ function enforceAccess(session) {
     (currentRoute === "counselor-management.html" || currentRoute === "meta-integration.html") &&
     session.role !== "admin"
   ) {
-    // marketing users are allowed on meta-integration.html
-    if (currentRoute === "meta-integration.html" && session.role === "marketing") {
-      return true;
-    }
     const fallback =
       session.role === "counselor"
         ? getFirstAllowedPage(getCounselorPermissions(session))
@@ -350,6 +365,8 @@ function bindClientRouter() {
     }
 
     event.preventDefault();
+    // Marketing users cannot navigate to other pages via the sidebar
+    if (activeSession?.role === "marketing") return;
     void navigateToRoute(href);
   });
 
